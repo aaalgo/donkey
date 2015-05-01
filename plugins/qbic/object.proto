@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package donkey;
+
+// Feature vector
+message Feature {
+}
+
+// Meta data
+message Meta {
+}
+
+

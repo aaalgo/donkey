@@ -1,0 +1,54 @@
+#!/bin/bash
+
+echo heehaw
+
+
+PLUGIN=$1
+
+if [ -z "$PLUGIN" ]
+then
+	echo please provide a plugin name
+	exit 1
+fi
+
+PLUGIN_DIR=plugins/$PLUGIN
+
+if [ ! -d plugins/$PLUGIN ]
+then
+	echo Plugin $PLUGIN does not exist.
+	exit 2
+fi
+
+
+if [ ! -f $PLUGIN_DIR/config.sh ]
+then
+	echo Missing $PLUGIN_DIR/config.sh
+	exit 3
+fi
+
+if [ ! -f $PLUGIN_DIR/object.proto ]
+then
+	echo Missing $PLUGIN_DIR/object.proto
+	exit 4
+fi
+
+. plugins/$PLUGIN/config.sh
+
+rm -f common/Makefile.protocol.inc
+if [ "$PROTOCOL" = http ]
+then
+	ln -s Makefile.http.inc common/Makefile.protocol.inc
+elif [ "$PROTOCOL" = grpc ]
+then
+	ln -s Makefile.grpc.inc common/Makefile.protocol.inc
+else
+	echo PROTOCOL should be http or grpc
+	exit 5
+fi
+
+rm -rf common/plugin
+ln -s $PWD/$PLUGIN_DIR common/plugin
+
+make -C common
+
+

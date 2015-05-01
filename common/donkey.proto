@@ -1,0 +1,28 @@
+import "object.proto";
+
+package donkey;
+
+message SearchRequest {
+}
+
+message SearchResponse {
+}
+
+message InsertRequest {
+}
+
+message InsertResponse {
+}
+
+message StatusRequest {
+}
+
+message StatsResponse {
+}
+
+service Service {
+    rpc Search (SearchRequest) returns (SearchResponse);
+    rpc Insert (InsertRequest) returns (InsertResponse);
+    rpc Status (StatusRequest) returns (StatusResponse);
+}
+

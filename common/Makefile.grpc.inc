@@ -1,0 +1,5 @@
+PROTOCOL_LIBS = -lgrpc++_unsecure -lgrpc -lgpr 
+PROTOCOL_COMMON_OBJS = donkey.grpc.pb.o donkey.pb.o
+PROTOCOL_SERVER_OBJS = $(PROTOCOL_COMMON_OBJS)
+PROTOCOL_CLIENT_OBJS = $(PROTOCOL_COMMON_OBJS)
+

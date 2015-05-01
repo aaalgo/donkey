@@ -1,0 +1,3 @@
+#ifndef AAALGO_DONKEY_QBIC
+#define AAALGO_DONKEY_QBIC
+#endif
