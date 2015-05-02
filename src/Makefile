@@ -14,7 +14,7 @@ PROTO_PATH = plugin
 
 vpath %.proto $(PROTO_PATH)
 
-PROGS = server client
+PROGS = server client build-info
 
 .PHONY:	all clean
 
@@ -25,7 +25,7 @@ clean:
 
 HEADERS = donkey.h $(X_HEADERS)
 
-SERVER_OBJS = server.o object.pb.o $(PROTO_SERVER_OBJS)
+SERVER_OBJS = object.pb.o server.o $(PROTO_SERVER_OBJS)
 CLIENT_OBJS = client.o $(PROTO_CLIENT_OBJS)
 
 server:	$(SERVER_OBJS) $(HEADERS)
@@ -33,6 +33,9 @@ server:	$(SERVER_OBJS) $(HEADERS)
 
 client:	$(CLIENT_OBJS) $(HEADERS)
 	$(CXX) $(LDFLAGS) $(SERVER_OBJS) $(LDLIBS) -o $@ 
+
+build-info:	build-info.cpp $(HEADERS)
+	$(CXX) $(LDFLAGS) build-info.cpp $(LDLIBS) -o $@
 
 %.grpc.pb.cc:	%.proto
         $(PROTOC) -I $(PROTO_PATH) --grpc_out=. --plugin=protoc-gen-grpc=$(GRPC_CPP_PLUGIN_PATH) $<

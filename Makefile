@@ -3,7 +3,7 @@
 all:
 	./heehaw qbic
 
-nuke:
+clean:
 	make -C common clean
 	rm -f common/plugin
 	rm -f common/Makefile.protocol.inc
