@@ -34,21 +34,21 @@ fi
 
 . plugins/$PLUGIN/config.sh
 
-rm -f common/Makefile.protocol.inc
+rm -f src/Makefile.protocol.inc
 if [ "$PROTOCOL" = http ]
 then
-	ln -s Makefile.http.inc common/Makefile.protocol.inc
+	ln -s Makefile.http.inc src/Makefile.protocol.inc
 elif [ "$PROTOCOL" = grpc ]
 then
-	ln -s Makefile.grpc.inc common/Makefile.protocol.inc
+	ln -s Makefile.grpc.inc src/Makefile.protocol.inc
 else
 	echo PROTOCOL should be http or grpc
 	exit 5
 fi
 
-rm -rf common/plugin
-ln -s $PWD/$PLUGIN_DIR common/plugin
+rm -rf src/plugin
+ln -s $PWD/$PLUGIN_DIR src/plugin
 
-make -C common
+make -C src
 
 

@@ -1,70 +1,41 @@
 #ifndef AAALGO_DONKEY
 #define AAALGO_DONKEY
 
+#include <unistd.h>
+#include <iostream>
+#include <fstream>
 #include <string>
 #include <functional>
-#include <stdexcept>
+#include <boost/log/trivial.hpp>
+#include <boost/log/attributes/named_scope.hpp>
 #include <boost/property_tree/ptree.hpp>
+#include <boost/timer/timer.hpp>
+#include <boost/assert.hpp>
+#include <kgraph.h>
 
-#include "plugin/config.h"
-
-#define LOG(x) BOOST_LOG_TRIVIAL(x)
-
+// common stuff
 namespace donkey {
 
     using std::function;
     using std::string;
     using std::runtime_error;
+    using std::fstream;
+    using std::vector;
 
-    // Exceptions and error handling
-    class Error: public runtime_error {
-    public:
-        explicit Error (string const &what): runtime_error(what) {}
-        explicit Error (char const *what): runtime_error(what) {}
-        virtual int64_t code () const = 0;
-    };
+    static constexpr size_t DEFAULT_MAX_DBS = 256;
 
-#define DEFINE_ERROR(name, cc) \
-    static constexpr int64_t name##Code = cc; \
-    class name: public Error { \
-    public: \
-        explicit name (string const &what): Error(what) {} \
-        explicit name (char const *what): Error(what) {} \
-        virtual int64_t code () const { return cc;} \
-    }
+    // Configuration
+    typedef boost::property_tree::ptree Config;
 
-    // 本地系统错误
-    DEFINE_ERROR(UnknownError, 0x0001);
-#undef DEFINE_ERROR
+    void LoadConfig (string const &path, Config *);
+    void OverrideConfig (std::vector<std::string> const &overrides, Config *);
 
+    // Logging
+#define LOG(x) BOOST_LOG_TRIVIAL(x)
     namespace logging = boost::log;
     void setup_logging (string const &path = string());
 
     void DumpStack ();
-
-    void no_throw (function<void()> const &);
-
-    // 控制某段程序最多运行n次 (防止某类错误报告无穷次)
-    // 比如:
-    //    if (有何错误发生) {
-    //        at_most(10) {
-    //            LOG(warning) << "错误...";
-    //        }
-    //    }
-    // 要小心使用这种语法，因为定义了局部变量xxxatmost，所以在一个{} scope里面
-    // 最多只能使用一次
-#define at_most(n) static at_most_helper xxxatmost(n); if (xxxatmost())
-    class at_most_helper {
-        int max;
-        int count;
-    public:
-        at_most_helper (int max_): max(max_), count(0) {
-        }
-        bool operator () () {
-            __sync_fetch_and_add(&count, 1); \
-            return count <= max;
-        }
-    };
 
     class Timer {
         boost::timer::cpu_timer timer;
@@ -77,69 +48,120 @@ namespace donkey {
             *result = timer.elapsed().wall/1e9;
         }
     };
+}
 
+// data-type-specific configuration
+#include "plugin/config.h"
 
-    // 只保证近似准确
-    class PerformanceCounter {
-        static std::mutex mutex;  // 只用来保护下面的set
-        static set<PerformanceCounter const *> active;
-        string name;
-        double m0;
-        double m1;
-        double m2;
-        double min; 
-        double max;
+namespace donkey {
+
+    // user will have to ensure serial access
+    class Journal {
+        static uint32_t const MAGIC = 0xdeadbeef;
+        std::string path;           // path to journal file
+        ofstream str;
+        bool recovered;
+
+        static void sync_fstream (fstream &str) {
+        }
     public:
-        PerformanceCounter (string const &name_): name(name_) {
-            m0 = m1 = m2 = 0;
-            max = -numeric_limits<double>::max();
-            min = numeric_limits<double>::max();
-            std::lock_guard<std::mutex> lock(mutex);
-            active.insert(this);
-        }
-        ~PerformanceCounter () {
-            std::lock_guard<std::mutex> lock(mutex);
-            active.erase(this);
+        Journal (string const &path_)
+              : path(path_),
+              recovered(false) {
         }
 
-        void add (double v = 1.0) {
-            m0 += 1.0;
-            m1 += v;
-            m2 += v * v;
-            if (v > max) max = v;
-            if (v < min) min = v;
-        }
-
-        static void perf (api::PerfResponse *resp) {
-            std::lock_guard<std::mutex> lock(mutex);
-            for (auto p: active) {
-                api::PerfCounter c;
-                c.name = p->name;
-                c.m0 = p->m0;
-                c.m1 = p->m1;
-                c.m2 = p->m2;
-                c.min = p->min;
-                c.max = p->max;
-                resp->counters.push_back(c);
+        ~Journal () {
+            if (str.is_open()) {
+                sync();
             }
         }
-    };
 
-    typedef boost::property_tree::ptree Config;
-    void LoadConfig (string const &path, Config *);
-    static inline void LoadConfig (Config *conf) {
-        LoadConfig("leo.xml", conf);
-    }
-    void OverrideConfig (std::vector<std::string> const &overrides, Config *);
+        // fastforward: directly jump to the given offset
+        // return maxid
+        int recover (std::function<void(uint16_t dbid, string const &key, Object *object)> callback) {
+            size_t off = 0;
+            int count = 0;
+            do {
+                std::ifstream is(path.c_str(), std::ios::binary);
+                if (!is) {
+                    LOG(warning) << "Fail to open journal file." << endl;
+                    LOG(warning) << "Overwriting..." << endl;
+                    break;
+                }
+                for (;;) {
+                    uint32_t magic;
+                    uint16_t dbid;
+                    uint16_t key_size;
+                    is.read(reinterpret_cast<char *>(&magic), sizeof(magic));
+                    if (!is) break;
+                    if (magic != MAGIC) {
+                        cerr << "Corrupted journal, truncating at " << off << endl;
+                        break;
+                    }
+                    is.read(reinterpret_cast<char *>(&dbid), sizeof(dbid));
+                    is.read(reinterpret_cast<char *>(&key_size), sizeof(key_size));
+                    if (!is) break;
+                    string key;
+                    key.resize(key_size);
+                    is.read((char *)&key[0], key.size());
+                    if (!is) break;
+                    Object object;
+                    object.read(is);
+                    callback(dbid, key, &object);
+                    ++count;
+                    off = is.tellg();
+                }
+                is.close();
+                cerr << "Journal recovered." << endl;
+                cerr << count << " items loaded." << endl;
+                cerr << "Offset is " << off << "." << endl;
+            
+            }
+            while (false);
 
-    struct Object {
-        Meta meta;
-        vector<Feature> features;
+            {
+                fd = ::open(path.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+                BOOST_VERIFY(fd >= 0);
+                int r = ::ftruncate(fd, off);
+                BOOST_VERIFY(r == 0);
+                close(fd);
+            }
+
+            str.open(path.c_str(), ios::binary | ios.app);
+        }
+
+        void append (uint16_t dbid, string const &key, Object const &object) {
+            BOOST_VERIFY(recovered);
+            uint32_t magic = MAGIC;
+            size_t r = str.write(reinterpret_cast<char const *>(&magic), sizeof(magic));
+            BOOST_VERIFY(r == sizeof(magic));
+            r = str.write(reinterpret_cast<char const *>(&dbid), sizeof(dbid));
+            BOOST_VERIFY(r == sizeof(dbid));
+            uint16_t key_size = key.size();
+            r = str.write(reinterpret_cast<char const *>(&key_size), sizeof(key_size));
+            BOOST_VERIFY(r == sizeof(key_size));
+            r = str.write(&key[0], key_size);
+            BOOST_VERIFY(r == key_size);
+            object.write(str);
+        }
+
+        void sync () {
+            str.flush();
+            int handle = static_cast<std::filebuf *>(str.rdbuf())->_M_file.fd();
+            ::fsync(fd);
+        }
     };
 
     class Index {
+        struct Entry {
+            uint32_t oid;
+            uint32_t fid;
+            Feature const *feature;
+        };
+        vector<Entry> entries;
+
     public:
-        virtual ~Index () {
+        Index (Config const &config) {
         }
 
         virtual void search (Feature const &, std::vector<IndexKey> *) {
@@ -149,48 +171,115 @@ namespace donkey {
         virtual void search (std::vector<Feature> const &fv, std::vector<std::vector<IndexKey>> *keys) {
         }
 
-        virtual void append (Record const &record) {
+        virtual void append (uint32_t id, Object const *object) {
             BOOST_VERIFY(0);
+        }
+
+        void clear () {
         }
 
         virtual void rebuild () {
         }
     };
 
-    class Journal {
-        static uint32_t const MAGIC = 0xdeadbeef;
-        std::string path;           // path to journal file
-        int fd;                     // file desc
-        bool recovered;
+    class DB {
+        vector<Object> objects;
+        Index index;
     public:
-        Journal (std::string const &path_)
-              : path(path_),
-              fd(-1), recovered(false) {
+        DB (Config const &config)
+            : index(config)
+        {
         }
 
-        ~Journal () {
-            if (fd >= 0) ::close(fd);
+        void insert (string const &key, Object *object) {
+            size_t id = objects.size();
+            objects.emplace_back();
+            object->swap(objects.back());
+            index->append(id, objects.back());
         }
 
-        // fastforward: directly jump to the given offset
-        // return maxid
-        int recover (std::function<void(int id, Points const &rec)> callback); 
-
-        void append (int id, Points const &points, bool sync = true);
-
-        void sync () {
-            ::fsync(fd);
+        void search (Object const *object) const {
         }
-    };
 
-    class Collection {
-    public:
+        void clear () {
+            index.clear();
+            objects.clear();
+        }
+
+        void reindex () {
+            index.rebuild();
+        }
     };
 
     class Server {
-    public:
-    };
+        string root;
+        Journal journal;
+        vector<DB *> dbs;
 
+        void check_dbid (uint16_t dbid) {
+            BOOST_VERIFY(dbid < dbs.size());
+        }
+    public:
+        Server (Config const &config)
+            : root(config.get<string>("donkey.root")),
+            journal(root + "/journal"),
+            dbs(config.get<size_t>("donkey.max_dbs", DEFAULT_MAX_DBS), nullptr)
+        {
+            // create empty dbs
+            for (auto &db: dbs) {
+                db = new DB(config);
+            }
+            // recover journal 
+            journal.recover([this](uint16_t dbid, string const &key, Object *object){
+                try {
+                    this->insert(dbid, key, object);
+                }
+                catch (...) {
+                }
+            });
+            // reindex all dbs
+            for (auto db: dbs) {
+                db->reindex();
+            }
+        }
+
+        ~Server () { // close all dbs
+            for (DB *db: dbs) {
+                delete db;
+            }
+        }
+
+        void insert (uint16_t dbid, string const &key, Object *object) {
+            check_dbid(dbid);
+            // has to check first
+            journal.append(dbid, key, *object);
+            // because insert could swap object's content
+            dbs[dbid]->insert(object);
+        }
+
+        void search (uint16_t dbid, Object const *object) const {
+            check_dbid(dbid);
+            dbs[dbid]->search(object);
+        }
+
+        void reindex (uint16_t dbid) {
+            check_dbid(dbid);
+            dbs[dbid]->reindex();
+        }
+
+        void clear (uint16_t dbid) {
+            check_dbid(dbid);
+            dbs[dbid]->clear();
+        }
+
+        void sync () {
+            journal.sync();
+        }
+
+        void status () const {
+        }
+
+    };
 }
 
 #endif

@@ -1,14 +1,39 @@
-import "object.proto";
+syntax = "proto3";
 
 package donkey;
 
 message SearchRequest {
+    // the query object is always passed in either URL or content.
+    // URL starts with / is interpreted as local path.
+    // Either url or content must by non-empty, and the other
+    // must be empty
+    int32 db = 1;
+    string url = 2;
+    bytes content = 3;
+    // Up to K most similar objects, falling with in radius R
+    // are returned.
+    // Both K and R constraints must be satisfied.
+    int32 K = 4;   // 0 means no constraint on K
+    double R = 5;   // 0 means no constraint on R
+    // other parameters
+    repeated double params = 6;
+}
+
+message Hit {
+    bytes key = 1;
+    double score = 2;
 }
 
 message SearchResponse {
+    repeated Hit hits = 1;
 }
 
 message InsertRequest {
+    int32 db = 1;
+    bytes key = 2;
+    // either url or content should be non-empty and used
+    string url = 3;
+    bytes content = 4;
 }
 
 message InsertResponse {
@@ -17,12 +42,13 @@ message InsertResponse {
 message StatusRequest {
 }
 
-message StatsResponse {
+message StatusResponse {
+    repeated double stats = 1;
 }
 
 service Service {
-    rpc Search (SearchRequest) returns (SearchResponse);
-    rpc Insert (InsertRequest) returns (InsertResponse);
-    rpc Status (StatusRequest) returns (StatusResponse);
+    rpc search (SearchRequest) returns (SearchResponse);
+    rpc insert (InsertRequest) returns (InsertResponse);
+    rpc status (StatusRequest) returns (StatusResponse);
 }
 
