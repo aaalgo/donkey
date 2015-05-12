@@ -5,6 +5,7 @@
 
 namespace donkey {
 
+#if 0
     typedef vector<float> FloatVectorFeature;
 
     template <typename T>
@@ -46,6 +47,7 @@ namespace donkey {
         }
     };
 
+#endif
 }
 
 #endif

@@ -2,6 +2,7 @@
 #include "donkey.h"
 
 using namespace std;
+using namespace donkey;
 
 int main (int argc, char *argv[]) {
     string config_path;
@@ -32,7 +33,7 @@ int main (int argc, char *argv[]) {
 
     Config config;
     LoadConfig(config_path, &config);
-    leo::OverrideConfig(overrides, &config);
+    OverrideConfig(overrides, &config);
 
     Server server(config);
     run_service(config, &server);

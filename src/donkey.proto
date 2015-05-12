@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package donkey;
+package donkey.protocol;
 
 message SearchRequest {
     // the query object is always passed in either URL or content.
@@ -48,7 +48,7 @@ message StatusResponse {
     repeated double stats = 1;
 }
 
-service Service {
+service Donkey {
     rpc search (SearchRequest) returns (SearchResponse);
     rpc insert (InsertRequest) returns (InsertResponse);
     rpc status (StatusRequest) returns (StatusResponse);

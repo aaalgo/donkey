@@ -1,34 +1,46 @@
 #ifndef AAALGO_DONKEY
 #define AAALGO_DONKEY
 
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <array>
 #include <vector>
+#include <unordered_map>
 #include <mutex>
 #include <functional>
-#include <boost/thread.hpp>
+#include <boost/thread/locks.hpp>
+#include <boost/thread/shared_mutex.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/attributes/named_scope.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/timer/timer.hpp>
 #include <boost/assert.hpp>
 #include <kgraph.h>
+#include "fnhack.h"
 
 // common stuff
 namespace donkey {
 
+    using std::ios;
     using std::function;
     using std::string;
     using std::runtime_error;
     using std::fstream;
     using std::array;
     using std::vector;
+    using std::unordered_map;
+    using std::ifstream;
+    using std::ofstream;
     using boost::shared_mutex;
     using boost::unique_lock;
     using boost::shared_lock;
+    using boost::upgrade_lock;
+    using boost::upgrade_to_unique_lock;
 
     // maximal number of DBs
     static constexpr size_t DEFAULT_MAX_DBS = 256;
@@ -61,6 +73,9 @@ namespace donkey {
 
 namespace donkey {
 
+    struct Feature;
+    struct Object;
+
     // matching of a single feature within object
     struct Hint {   
         uint32_t dtag;  // data tag, tag of a matched feature
@@ -77,9 +92,6 @@ namespace donkey {
         string key;
         float score;
     };
-
-    struct Feature;
-    struct Object;
 
     struct SearchParams {
         unsigned K;
@@ -98,7 +110,7 @@ namespace donkey {
         virtual ~Index () {
         }
         virtual void search (Feature const &query, SearchParams const &params, std::vector<Match> *) const = 0;
-        virtual void insert (uint32_t object, uint32_t tag, Feature *feature) = 0;
+        virtual void insert (uint32_t object, uint32_t tag, Feature const *feature) = 0;
         virtual void clear () = 0;
         virtual void rebuild () = 0;
     };
@@ -118,13 +130,13 @@ namespace donkey {
         struct Entry {
             uint32_t object;
             uint32_t tag;
-            Feature *feature;
+            Feature const *feature;
         };
         size_t indexed_size;
         vector<Entry> entries;
 
-        friend class KGraphIndex::IndexOracle;
-        friend class KGraphIndex::SearchOracle;
+        friend class IndexOracle;
+        friend class SearchOracle;
 
         class IndexOracle: public kgraph::IndexOracle {
             KGraphIndex *parent;
@@ -136,16 +148,16 @@ namespace donkey {
                 return parent->entries.size();
             }   
             virtual float operator () (unsigned i, unsigned j) const {
-                return distance(*parent->entries[i].feature
+                return distance(*parent->entries[i].feature,
                                 *parent->entries[j].feature);
             }   
         };  
 
         class SearchOracle: public kgraph::SearchOracle {
-            KGraphIndex *parent;
+            KGraphIndex const *parent;
             Feature const &query;
         public:
-            SearchOracle (KGraphIndex *p, Feature const &q): parent(p), query(q) {
+            SearchOracle (KGraphIndex const *p, Feature const &q): parent(p), query(q) {
             }   
             virtual unsigned size () const {
                 return parent->indexed_size;
@@ -179,7 +191,7 @@ namespace donkey {
             search_params.seed = config.get<unsigned>("donkey.kgraph.search.seed", search_params.seed);
         }
 
-        ~KGraphIndex {
+        ~KGraphIndex () {
             if (kg_index) {
                 delete kg_index;
             }
@@ -191,8 +203,8 @@ namespace donkey {
                 matches->clear();
                 return;
             }
-            BOOST_VERIFY(kg_graph == 0);
-            SearchOracle oracle(this, query.feature);
+            BOOST_VERIFY(kg_index == 0);
+            SearchOracle oracle(this, query);
             KGraph::SearchParams params(search_params);
             params.K = sp.hint_K;
             params.epsilon = sp.hint_R;
@@ -206,11 +218,11 @@ namespace donkey {
                 auto const &e = entries[ids[i]];
                 m.object = e.object;
                 m.tag = e.tag;
-                m.distance = dist[i];
+                m.distance = dists[i];
             }
         }
 
-        virtual void insert (uint32_t object, uint32_t tag, Feature *feature) const {
+        virtual void insert (uint32_t object, uint32_t tag, Feature const *feature) {
             Entry e;
             e.object = object;
             e.tag = tag;
@@ -243,7 +255,7 @@ namespace donkey {
     // append & sync are protected.
     class Journal {
         static uint32_t const MAGIC = 0xdeadface;
-        std::string path;           // path to journal file
+        string path;           // path to journal file
         ofstream str;               // only opened after recover is invoked
         std::mutex mutex;
 
@@ -252,9 +264,10 @@ namespace donkey {
             uint16_t dbid;
             uint16_t key_size;
         };
+
     public:
         Journal (string const &path_)
-              : path(path_)
+              : path(path_) {
         }
 
         ~Journal () {
@@ -265,11 +278,11 @@ namespace donkey {
 
         // fastforward: directly jump to the given offset
         // return maxid
-        int recover (std::function<void(uint16_t dbid, string const &key, Object *object)> callback) {
+        int recover (function<void(uint16_t dbid, string const &key, Object *object)> callback) {
             size_t off = 0;
             int count = 0;
             do {
-                std::ifstream is(path.c_str(), std::ios::binary);
+                ifstream is(path.c_str(), std::ios::binary);
                 if (!is) {
                     LOG(warning) << "Fail to open journal file.";
                     LOG(warning) << "Overwriting...";
@@ -302,7 +315,7 @@ namespace donkey {
             while (false);
 
             {
-                fd = ::open(path.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+                int fd = ::open(path.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
                 if (fd < 0) {
                     LOG(fatal) << "Cannot open journal file.";
                     BOOST_VERIFY(0);
@@ -313,7 +326,7 @@ namespace donkey {
                 }
                 close(fd);
             }
-            str.open(path.c_str(), ios::binary | ios.app);
+            str.open(path.c_str(), ios::binary | ios::app);
             BOOST_VERIFY(str.is_open());
         }
 
@@ -324,10 +337,10 @@ namespace donkey {
             head.magic = MAGIC;
             head.dbid = dbid;
             head.key_size = key.size();
-            size_t r = str.write(reinterpret_cast<char const *>(&head), sizeof(head));
-            BOOST_VERIFY(r == sizeof(head));
-            r = str.write(&key[0], key.size());
-            BOOST_VERIFY(r == key.size());
+            str.write(reinterpret_cast<char const *>(&head), sizeof(head));
+            BOOST_VERIFY(str);
+            str.write(&key[0], key.size());
+            BOOST_VERIFY(str);
             object.write(str);
         }
 
@@ -335,8 +348,7 @@ namespace donkey {
             BOOST_VERIFY(str.is_open());
             std::lock_guard<std::mutex> lock(mutex); 
             str.flush();
-            int handle = static_cast<std::filebuf *>(str.rdbuf())->_M_file.fd();
-            ::fsync(fd);
+            ::fsync(fileno_hack(str));
         }
     };
 
@@ -347,7 +359,7 @@ namespace donkey {
         };
         vector<Record *> records;
         Index *index;
-        shared_mutex mutex;
+        mutable shared_mutex mutex;
         Matcher matcher;
     public:
         DB (Config const &config) 
@@ -366,7 +378,7 @@ namespace donkey {
             Record *rec = new Record;
             rec->key = key;
             object->swap(rec->object);
-            unique_lock<shared_mutex> lock(mutex)
+            unique_lock<shared_mutex> lock(mutex);
             size_t id = records.size();
             records.push_back(rec);
             rec->object.enumerate([this, id](unsigned tag, Feature const *ft) {
@@ -375,28 +387,28 @@ namespace donkey {
         }
 
         void search (Object const &object, SearchParams const &params, vector<Hit> *hits) const {
-            unordered_map<unsigned, Candidate> hits;
+            unordered_map<unsigned, Candidate> candidates;
             {
                 shared_lock<shared_mutex> lock(mutex);
-                object.enumerate([this, hits](unsigned qtag, Feature const *ft) {
-                    vector<Match> matches;
+                object.enumerate([this, &params, &candidates](unsigned qtag, Feature const *ft) {
+                    vector<Index::Match> matches;
                     index->search(*ft, params, &matches);
                     for (auto const &m: matches) {
-                        auto &h = hits[m.object];
+                        auto &c = candidates[m.object];
                         Hint hint;
                         hint.dtag = m.tag;
                         hint.qtag = qtag;
                         hint.value = m.distance;
-                        h.hints.push_back(hint);
+                        c.hints.push_back(hint);
                     }
                 });
             }
             hits->clear();
-            for (auto &pair: hits) {
+            for (auto &pair: candidates) {
                 unsigned id = pair.first;
                 Candidate &cand = pair.second;
                 cand.object = &records[id]->object;
-                float score = matcher.match(object, hit);
+                float score = matcher.match(object, cand);
                 if (score  >= params.R) {
                     Hit hit;
                     hit.key = records[id]->key;
@@ -407,7 +419,7 @@ namespace donkey {
         }
 
         void clear () {
-            unique_lock<shared_mutex> lock(mutex)
+            unique_lock<shared_mutex> lock(mutex);
             index->clear();
             for (auto record: records) {
                 delete record;
@@ -416,8 +428,8 @@ namespace donkey {
         }
 
         void reindex () {
-            unique_lock<shared_mutex> lock(mutex)
-            index.rebuild();
+            unique_lock<shared_mutex> lock(mutex);
+            index->rebuild();
         }
     };
 
@@ -427,7 +439,7 @@ namespace donkey {
         vector<DB *> dbs;
         Extractor xtor;
 
-        void check_dbid (uint16_t dbid) {
+        void check_dbid (uint16_t dbid) const {
             BOOST_VERIFY(dbid < dbs.size());
         }
     public:
@@ -461,11 +473,11 @@ namespace donkey {
             }
         }
 
-        void extract_url (string const &url, Object *object) {
+        void extract_url (string const &url, Object *object) const {
             xtor.extract_url(url, object);
         }
 
-        void extract (string const &content, Object *object) {
+        void extract (string const &content, Object *object) const {
             xtor.extract(content, object);
         }
 
@@ -474,10 +486,10 @@ namespace donkey {
             // has to check first
             journal.append(dbid, key, *object);
             // because insert could swap object's content
-            dbs[dbid]->insert(object);
+            dbs[dbid]->insert(key, object);
         }
 
-        void search (uint16_t dbid, Object const *object, SearchParams const &params, vector<Hit> *hits) const {
+        void search (uint16_t dbid, Object const &object, SearchParams const &params, vector<Hit> *hits) const {
             check_dbid(dbid);
             dbs[dbid]->search(object, params, hits);
         }

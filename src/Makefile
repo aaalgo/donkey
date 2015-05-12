@@ -8,18 +8,18 @@ clean:
 
 include Makefile.protocol.inc
 
-CXXFLAGS += -std=c++11 -O3 -g $(EXTRA_CXXFLAGS)
+CXXFLAGS += -std=c++11 -O3 -g $(EXTRA_CXXFLAGS) -Igrpc -I$(PWD) -DBOOST_LOG_DYN_LINK
 LDFLAGS += $(EXTRA_LDFLAGS)
-LDLIBS += $(PROTOCOL_LIBS) -lboost_timer -lboost_chrono -lboost_program_options -lboost_log -lboost_thread -lboost_system $(EXTRA_LIBS) -lpthread -lrt -ldl
+LDLIBS += -lkgraph $(PROTOCOL_LIBS) -lboost_timer -lboost_chrono -lboost_program_options -lboost_log -lboost_log_setup -lboost_thread -lboost_system $(EXTRA_LIBS) -lpthread -lrt -ldl
 
 X_HEADERS = $(patsubst %.h, plugin/%.h, $(EXTRA_HEADERS))
 X_OBJS = $(patsubst %.cpp, plugin/%.o, $(EXTRA_SOURCES))
 
-HEADERS = donkey.h $(X_HEADERS)
+HEADERS = donkey.h plugin/config.h $(X_HEADERS) 
 
 TAGS = protocol.tag
-SERVER_OBJS = server.o $(PROTOCOL_OBJS)
-CLIENT_OBJS = client.o $(PROTOCOL_OBJS)
+SERVER_OBJS = server.o donkey.o $(PROTOCOL_OBJS)
+CLIENT_OBJS = client.o donkey.o $(PROTOCOL_OBJS)
 
 server:	$(TAGS) $(SERVER_OBJS) $(HEADERS)  
 	$(CXX) $(LDFLAGS) $(SERVER_OBJS) $(LDLIBS) -o $@ 
