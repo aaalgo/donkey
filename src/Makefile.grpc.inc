@@ -1,5 +1,5 @@
 PROTOCOL_LIBS = -lgrpc++_unsecure -lgrpc -lgpr -lprotobuf
-PROTOCOL_OBJS = grpc/donkey.grpc.pb.o grpc/donkey.pb.o
+PROTOCOL_OBJS = donkey-grpc.o grpc/donkey.grpc.pb.o grpc/donkey.pb.o
 
 GRPC_CPP_PLUGIN = grpc_cpp_plugin
 GRPC_CPP_PLUGIN_PATH ?= `which $(GRPC_CPP_PLUGIN)`

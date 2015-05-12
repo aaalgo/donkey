@@ -15,8 +15,10 @@ message SearchRequest {
     // Both K and R constraints must be satisfied.
     int32 K = 4;   // 0 means no constraint on K
     double R = 5;   // 0 means no constraint on R
+    int32 hint_K = 6;
+    double hint_R = 7;
     // other parameters
-    repeated double params = 6;
+    repeated double params = 8;
 }
 
 message Hit {
