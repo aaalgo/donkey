@@ -54,7 +54,7 @@ namespace donkey {
     // Logging
 #define LOG(x) BOOST_LOG_TRIVIAL(x)
     namespace logging = boost::log;
-    void setup_logging (string const &path = string());
+    void setup_logging (Config const &);
 
     //void DumpStack ();
 
@@ -69,6 +69,28 @@ namespace donkey {
             *result = timer.elapsed().wall/1e9;
         }
     };
+
+    class Error: public runtime_error {
+    public:
+        explicit Error (string const &what): runtime_error(what) {}
+        explicit Error (char const *what): runtime_error(what) {}
+        virtual int64_t code () const = 0;
+    };
+
+#define DEFINE_ERROR(name, cc) \
+    class name: public Error { \
+    public: \
+        explicit name (string const &what): Error(what) {} \
+        explicit name (char const *what): Error(what) {} \
+        virtual int64_t code () const { return cc;} \
+    }
+
+    static constexpr int64_t ErrorCode_Success = 0;
+    static constexpr int64_t ErrorCode_Unknown = -1;
+    DEFINE_ERROR(OutOfMemoryError, 0x0001);
+    DEFINE_ERROR(FileSystemError, 0x0002);
+#undef DEFINE_ERROR
+
 }
 
 namespace donkey {
@@ -100,6 +122,9 @@ namespace donkey {
         float hint_R;
     };
 
+    // Index is not synchronized -- usually insertions are done in batch,
+    // even adding a single object could involve multiple insertions.
+    // synchronizing individual insertion could be too expensive.
     class Index {
     public:
         struct Match {
@@ -143,12 +168,11 @@ namespace donkey {
         public:
             IndexOracle (KGraphIndex *p): parent(p) {
             }
-
             virtual unsigned size () const {
                 return parent->entries.size();
             }   
             virtual float operator () (unsigned i, unsigned j) const {
-                return distance(*parent->entries[i].feature,
+                return Distance::apply(*parent->entries[i].feature,
                                 *parent->entries[j].feature);
             }   
         };  
@@ -163,7 +187,7 @@ namespace donkey {
                 return parent->indexed_size;
             }   
             virtual float operator () (unsigned i) const {
-                return distance(*parent->entries[i].feature, query);
+                return Distance::apply(*parent->entries[i].feature, query);
             }   
         };
 
@@ -198,28 +222,26 @@ namespace donkey {
         }
 
         virtual void search (Feature const &query, SearchParams const &sp, std::vector<Match> *matches) const {
+            matches->clear();
+            if (kg_index) {
+                SearchOracle oracle(this, query);
+                KGraph::SearchParams params(search_params);
+                params.K = sp.hint_K;
+                params.epsilon = sp.hint_R;
+                // update search params
+                vector<unsigned> ids(params.K);
+                vector<float> dists(params.K);
+                unsigned L = kg_index->search(oracle, params, &ids[0], &dists[0], nullptr);
+                matches->resize(L);
+                for (unsigned i = 0; i < L; ++i) {
+                    auto &m = matches->at(i);
+                    auto const &e = entries[ids[i]];
+                    m.object = e.object;
+                    m.tag = e.tag;
+                    m.distance = dists[i];
+                }
+            }
             BOOST_VERIFY(indexed_size == entries.size());
-            if (entries.empty()) {
-                matches->clear();
-                return;
-            }
-            BOOST_VERIFY(kg_index == 0);
-            SearchOracle oracle(this, query);
-            KGraph::SearchParams params(search_params);
-            params.K = sp.hint_K;
-            params.epsilon = sp.hint_R;
-            // update search params
-            vector<unsigned> ids(params.K);
-            vector<float> dists(params.K);
-            unsigned L = kg_index->search(oracle, params, &ids[0], &dists[0], nullptr);
-            matches->resize(L);
-            for (unsigned i = 0; i < L; ++i) {
-                auto &m = matches->at(i);
-                auto const &e = entries[ids[i]];
-                m.object = e.object;
-                m.tag = e.tag;
-                m.distance = dists[i];
-            }
         }
 
         virtual void insert (uint32_t object, uint32_t tag, Feature const *feature) {
@@ -239,6 +261,7 @@ namespace donkey {
         }
 
         virtual void rebuild () {   // insert must not happen at this time
+            if (entries.size() == indexed_size) return;
             KGraph *kg = KGraph::create();
             LOG(info) << "Rebuilding index...";
             IndexOracle oracle(this);
@@ -429,6 +452,8 @@ namespace donkey {
 
         void reindex () {
             unique_lock<shared_mutex> lock(mutex);
+            // TODO: this can be improved
+            // The index building part doesn't requires read-lock only
             index->rebuild();
         }
     };

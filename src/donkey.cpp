@@ -53,7 +53,7 @@ namespace donkey {
     }
     */
 
-    void setup_logging (string const &path) {
+    void setup_logging (Config const &config) {
         /*
         namespace attrs = boost::log::attributes;
         namespace sinks = boost::log::sinks;

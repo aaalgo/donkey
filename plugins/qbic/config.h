@@ -8,9 +8,11 @@ namespace donkey {
     class Feature: public vector<float> {
     };
 
-    static inline float distance (Feature const &f1, Feature const &f2) {
-        return 0;
-    }
+    struct Distance {
+        static float apply (Feature const &f1, Feature const &f2) {
+            return 0;
+        }
+    };
 
     class Object {
     public:

@@ -1,9 +1,17 @@
 #ifndef AAALGO_DONKEY_COMMON
 #define AAALGO_DONKEY_COMMON
 
+#include <array>
 // common feature and objects 
 
 namespace donkey {
+
+    template <typename T, unsigned D>
+    struct VectorFeature {
+        static unsigned constexpr DIM = D;
+        std::array<T, D> data;
+    };
+
 
 #if 0
     typedef vector<float> FloatVectorFeature;
