@@ -1,4 +1,7 @@
+#include <sstream>
 #include <boost/property_tree/xml_parser.hpp>
+#include <boost/filesystem.hpp>
+#include <boost/format.hpp>
 /*
 #include <boost/core/null_deleter.hpp>
 #include <boost/log/utility/setup/common_attributes.hpp>
@@ -96,5 +99,56 @@ namespace donkey {
         logging::core::get()->add_sink(sink);
         */
     }
+
+    void ExtractorBase::extract (string const &content, Object *object) const {
+        namespace fs = boost::filesystem;
+        fs::path path(fs::unique_path());
+        WriteFile(path.native(), content);
+        extract_path(path.native(), object);
+        fs::remove(path);
+    }
+
+    void Server::loadObject (ObjectRequest const &request, Object *object) const {
+        namespace fs = boost::filesystem;
+        fs::path path;
+        bool is_url = false;
+        if (request.url.size()) {
+            if (request.content.size()) {
+                throw RequestError("both url and content set");
+            }
+            is_url = true;
+            path = fs::unique_path();
+            string cmd = (boost::format("wget -O '%s' '%s'") % path.native() % request.url).str();
+            int r = ::system(cmd.c_str());
+            if (r != 0) {
+                throw ExternalError(cmd);
+            }
+        }
+        
+        if (request.raw) {
+            if (request.content.size()) {
+                xtor.extract(request.content, object);
+            }
+            else { // url
+                xtor.extract_path(path.native(), object);
+            }
+        }
+        else {
+            if (request.content.size()) {
+                std::istringstream is(request.content);
+                object->read(is);
+            }
+            else { // url
+                ifstream is(path.native(), ios::binary);
+                object->read(is);
+            }
+        }
+
+        if (is_url) {
+            fs::remove(path);
+        }
+        
+    }
+
 }
     

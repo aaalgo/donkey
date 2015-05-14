@@ -34,6 +34,8 @@ namespace donkey {
     using std::array;
     using std::vector;
     using std::unordered_map;
+    using std::istream;
+    using std::ostream;
     using std::ifstream;
     using std::ofstream;
     using boost::shared_mutex;
@@ -44,6 +46,8 @@ namespace donkey {
 
     // maximal number of DBs
     static constexpr size_t DEFAULT_MAX_DBS = 256;
+    static constexpr size_t MAX_FEATURES = 10000;
+    static constexpr size_t MAX_BINARY = 128 * 1024 * 1024;
 
     // Configuration
     typedef boost::property_tree::ptree Config;
@@ -89,11 +93,9 @@ namespace donkey {
     static constexpr int64_t ErrorCode_Unknown = -1;
     DEFINE_ERROR(OutOfMemoryError, 0x0001);
     DEFINE_ERROR(FileSystemError, 0x0002);
+    DEFINE_ERROR(RequestError, 0x0002);
+    DEFINE_ERROR(ExternalError, 0x0002);
 #undef DEFINE_ERROR
-
-}
-
-namespace donkey {
 
     struct Feature;
     struct Object;
@@ -115,11 +117,48 @@ namespace donkey {
         float score;
     };
 
-    struct SearchParams {
-        unsigned K;
+    struct ObjectRequest {
+        bool raw;
+        string url;
+        string content;
+    };
+
+    struct SearchRequest: public ObjectRequest {
+        uint16_t db;
+        int32_t K;
         float R;
-        unsigned hint_K;
+        int32_t hint_K;
         float hint_R;
+    };
+
+    struct SearchResponse {
+        vector<Hit> hits;
+        double time;
+        double load_time;
+        double filter_time;
+        double rank_time;
+    };
+
+    struct InsertRequest: public ObjectRequest {
+        uint16_t db;
+        string key;
+    };
+
+    struct InsertResponse {
+        double time;
+        double load_time;
+        double journal_time;
+        double index_time;
+    };
+
+    struct MiscRequest {
+        string method;
+        int16_t db;
+    };
+
+    struct MiscResponse {
+        int code;
+        string text;
     };
 
     // Index is not synchronized -- usually insertions are done in batch,
@@ -134,11 +173,45 @@ namespace donkey {
         };
         virtual ~Index () {
         }
-        virtual void search (Feature const &query, SearchParams const &params, std::vector<Match> *) const = 0;
+        virtual void search (Feature const &query, SearchRequest const &params, std::vector<Match> *) const = 0;
         virtual void insert (uint32_t object, uint32_t tag, Feature const *feature) = 0;
         virtual void clear () = 0;
         virtual void rebuild () = 0;
     };
+
+    static inline void ReadFile (const std::string &path, std::string *binary) {
+        // file could not be too big
+        binary->clear();
+        ifstream is(path.c_str(), std::ios::binary);
+        if (!is) return;
+        is.seekg(0, std::ios::end);
+        size_t size = size_t(is.tellg());
+        if (size > MAX_BINARY) return;
+        binary->resize(size);
+        if (size) {
+            is.seekg(0, std::ios::beg);
+            is.read((char *)&binary->at(0), size);
+        }
+        if (!is) binary->clear();
+    }
+
+    static inline void WriteFile (const std::string &path, std::string const &binary) {
+        // file could not be too big
+        ofstream os(path.c_str(), ios::binary);
+        os.write(&binary[0], binary.size());
+    }
+
+    class ExtractorBase {
+    public:
+        virtual ~ExtractorBase () {}
+        virtual void extract_path (string const &path, Object *object) const {
+            string content;
+            ReadFile(path, &content);
+            extract(content, object);
+        }
+        virtual void extract (string const &content, Object *object) const; 
+    };
+
 }
 
 // data-type-specific configuration
@@ -172,7 +245,8 @@ namespace donkey {
                 return parent->entries.size();
             }   
             virtual float operator () (unsigned i, unsigned j) const {
-                return Distance::apply(*parent->entries[i].feature,
+                return (-FeatureSimilarity::POLARITY) *
+                       FeatureSimilarity::apply(*parent->entries[i].feature,
                                 *parent->entries[j].feature);
             }   
         };  
@@ -187,7 +261,7 @@ namespace donkey {
                 return parent->indexed_size;
             }   
             virtual float operator () (unsigned i) const {
-                return Distance::apply(*parent->entries[i].feature, query);
+                return FeatureSimilarity::apply(*parent->entries[i].feature, query);
             }   
         };
 
@@ -221,7 +295,7 @@ namespace donkey {
             }
         }
 
-        virtual void search (Feature const &query, SearchParams const &sp, std::vector<Match> *matches) const {
+        virtual void search (Feature const &query, SearchRequest const &sp, std::vector<Match> *matches) const {
             matches->clear();
             if (kg_index) {
                 SearchOracle oracle(this, query);
@@ -409,9 +483,10 @@ namespace donkey {
             });
         }
 
-        void search (Object const &object, SearchParams const &params, vector<Hit> *hits) const {
+        void search (Object const &object, SearchRequest const &params, SearchResponse *response) const {
             unordered_map<unsigned, Candidate> candidates;
             {
+                Timer timer(&response->filter_time);
                 shared_lock<shared_mutex> lock(mutex);
                 object.enumerate([this, &params, &candidates](unsigned qtag, Feature const *ft) {
                     vector<Index::Match> matches;
@@ -426,17 +501,21 @@ namespace donkey {
                     }
                 });
             }
-            hits->clear();
-            for (auto &pair: candidates) {
-                unsigned id = pair.first;
-                Candidate &cand = pair.second;
-                cand.object = &records[id]->object;
-                float score = matcher.match(object, cand);
-                if (score  >= params.R) {
-                    Hit hit;
-                    hit.key = records[id]->key;
-                    hit.score = score;
-                    hits->push_back(hit);
+            {
+                Timer timer(&response->rank_time);
+                response->hits.clear();
+                float R = params.R * Matcher::POLARITY;
+                for (auto &pair: candidates) {
+                    unsigned id = pair.first;
+                    Candidate &cand = pair.second;
+                    cand.object = &records[id]->object;
+                    float score = matcher.apply(object, cand) * Matcher::POLARITY;
+                    if (score  >= R) {
+                        Hit hit;
+                        hit.key = records[id]->key;
+                        hit.score = score;
+                        response->hits.push_back(hit);
+                    }
                 }
             }
         }
@@ -458,7 +537,17 @@ namespace donkey {
         }
     };
 
-    class Server {
+    class Service {
+    public:
+        virtual ~Service () {
+        }
+        virtual void ping () const = 0;
+        virtual void insert (InsertRequest const &request, InsertResponse *response) = 0;
+        virtual void search (SearchRequest const &request, SearchResponse *response) const = 0;
+        virtual void misc (MiscRequest const &request, MiscResponse *response) = 0;
+    };
+
+    class Server: public Service {
         string root;
         Journal journal;
         vector<DB *> dbs;
@@ -467,6 +556,9 @@ namespace donkey {
         void check_dbid (uint16_t dbid) const {
             BOOST_VERIFY(dbid < dbs.size());
         }
+
+        void loadObject (ObjectRequest const &request, Object *object) const; 
+
     public:
         Server (Config const &config)
             : root(config.get<string>("donkey.root")),
@@ -481,7 +573,7 @@ namespace donkey {
             // recover journal 
             journal.recover([this](uint16_t dbid, string const &key, Object *object){
                 try {
-                    this->insert(dbid, key, object);
+                    dbs[dbid]->insert(key, object);
                 }
                 catch (...) {
                 }
@@ -498,46 +590,59 @@ namespace donkey {
             }
         }
 
-        void extract_url (string const &url, Object *object) const {
-            xtor.extract_url(url, object);
+        void ping () const {
         }
 
-        void extract (string const &content, Object *object) const {
-            xtor.extract(content, object);
+        void insert (InsertRequest const &request, InsertResponse *response) {
+            Timer timer(&response->time);
+            check_dbid(request.db);
+            Object object;
+            {
+                Timer timer1(&response->load_time);
+                loadObject(request, &object);
+            }
+            {
+                Timer timer2(&response->journal_time);
+                journal.append(request.db, request.key, object);
+            }
+            {
+                Timer timer3(&response->index_time);
+                // must come after journal, as db insert could change object content
+                dbs[request.db]->insert(request.key, &object);
+            }
         }
 
-        void insert (uint16_t dbid, string const &key, Object *object) {
-            check_dbid(dbid);
-            // has to check first
-            journal.append(dbid, key, *object);
-            // because insert could swap object's content
-            dbs[dbid]->insert(key, object);
+        void search (SearchRequest const &request, SearchResponse *response) const {
+            Timer timer(&response->time);
+            check_dbid(request.db);
+            Object object;
+            {
+                Timer timer1(&response->load_time);
+                loadObject(request, &object);
+            }
+            dbs[request.db]->search(object, request, response);
         }
 
-        void search (uint16_t dbid, Object const &object, SearchParams const &params, vector<Hit> *hits) const {
-            check_dbid(dbid);
-            dbs[dbid]->search(object, params, hits);
-        }
-
-        void reindex (uint16_t dbid) {
-            check_dbid(dbid);
-            dbs[dbid]->reindex();
-        }
-
-        void clear (uint16_t dbid) {
-            check_dbid(dbid);
-            dbs[dbid]->clear();
-        }
-
-        void sync () {
-            journal.sync();
-        }
-
-        void status () const {
+        void misc (MiscRequest const &request, MiscResponse *response) {
+            if (request.method == "reindex") {
+                check_dbid(request.db);
+                dbs[request.db]->reindex();
+            }
+            else if (request.method == "clear") {
+                check_dbid(request.db);
+                dbs[request.db]->clear();
+            }
+            else if (request.method == "sync") {
+                journal.sync();
+            }
+            response->code = 0;
         }
     };
 
-    void run_service (Config const &config, Server *);
+    void run_server (Config const &, Server *);
+
+    Service *make_client (Config const &);
+
 }
 
 #endif

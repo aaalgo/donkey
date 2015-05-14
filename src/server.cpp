@@ -12,7 +12,7 @@ int main (int argc, char *argv[]) {
     po::options_description desc("Allowed options");
     desc.add_options()
         ("help,h", "produce help message.")
-        ("config", po::value(&config_path)->default_value("phase.xml"), "")
+        ("config", po::value(&config_path)->default_value("donkey.xml"), "")
         ("override,D", po::value(&overrides), "override configuration.")
         ;
 
@@ -36,7 +36,7 @@ int main (int argc, char *argv[]) {
     OverrideConfig(overrides, &config);
 
     Server server(config);
-    run_service(config, &server);
+    run_server(config, &server);
 
     return 0;
 }

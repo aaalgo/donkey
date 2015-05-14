@@ -8,17 +8,18 @@ message SearchRequest {
     // Either url or content must by non-empty, and the other
     // must be empty
     int32 db = 1;
-    string url = 2;
-    bytes content = 3;
+    bool raw = 2;
+    string url = 3;
+    bytes content = 4;
     // Up to K most similar objects, falling with in radius R
     // are returned.
     // Both K and R constraints must be satisfied.
-    int32 K = 4;   // 0 means no constraint on K
-    double R = 5;   // 0 means no constraint on R
-    int32 hint_K = 6;
-    double hint_R = 7;
+    int32 K = 5;   // 0 means no constraint on K
+    double R = 6;   // 0 means no constraint on R
+    int32 hint_K = 7;
+    double hint_R = 8;
     // other parameters
-    repeated double params = 8;
+    repeated double params = 9;
 }
 
 message Hit {
@@ -27,30 +28,49 @@ message Hit {
 }
 
 message SearchResponse {
-    repeated Hit hits = 1;
+    double time = 1;
+    double load_time = 2;
+    double filter_time = 3;
+    double rank_time = 4;
+    repeated Hit hits = 5;
 }
 
 message InsertRequest {
     int32 db = 1;
-    bytes key = 2;
+    bool raw = 2;
+    bytes key = 3;
     // either url or content should be non-empty and used
-    string url = 3;
-    bytes content = 4;
+    string url = 4;
+    bytes content = 5;
 }
 
 message InsertResponse {
+    double time = 1;
+    double load_time = 2;
+    double journal_time = 3;
+    double index_time = 4;
 }
 
-message StatusRequest {
+message MiscRequest {
+    string method = 1;
+    int32 db = 2;
 }
 
-message StatusResponse {
-    repeated double stats = 1;
+message MiscResponse {
+    int32 code = 1;
+    string text = 2;
+}
+
+message PingRequest {
+}
+
+message PingResponse {
 }
 
 service Donkey {
+    rpc ping (PingRequest) returns (PingResponse);
     rpc search (SearchRequest) returns (SearchResponse);
     rpc insert (InsertRequest) returns (InsertResponse);
-    rpc status (StatusRequest) returns (StatusResponse);
+    rpc misc (MiscRequest) returns (MiscResponse);
 }
 

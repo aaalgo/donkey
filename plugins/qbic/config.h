@@ -5,48 +5,29 @@
 
 namespace donkey {
 
-    class Feature: public vector<float> {
+    static constexpr unsigned QBIC_DIM = 16;
+
+    struct Feature: public VectorFeature<float, QBIC_DIM> {
     };
 
-    struct Distance {
-        static float apply (Feature const &f1, Feature const &f2) {
-            return 0;
-        }
+    struct FeatureSimilarity: public distance::L2<float, QBIC_DIM> {
     };
 
-    class Object {
-    public:
-        void enumerate (function<void(unsigned tag, Feature const *ft)> callback) const {
-        }
-        void read (std::istream &is) {
-        }
-        void write (std::ostream &os) const {
-        }
-
-        void swap (Object &o) {
-        }
+    struct Object: public SingleFeatureObject<Feature> {
     };
 
-    class Extractor {
+    class Extractor: public ExtractorBase {
     public:
         Extractor (Config const &config) {
         }
-
-        void extract_url (string const &url, Object *object) const {
-        }
-
-        void extract (string const &content, Object *object) const {
+        void extract_path (string const &url, Object *object) const {
         }
     };
 
-    class Matcher {
+    class Matcher: public TrivialMatcher<FeatureSimilarity> {
     public:
-        Matcher (Config const &config) {
+        Matcher (Config const &config): TrivialMatcher<FeatureSimilarity>(config) {
         };
-
-        float match (Object const &query, Candidate const &cand) const {
-            return 0;
-        }
     };
 
 }

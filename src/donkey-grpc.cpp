@@ -4,41 +4,67 @@
 #include <grpc++/server_context.h>
 #include <grpc++/server_credentials.h>
 #include <grpc++/status.h>
+#include <grpc++/channel_arguments.h>
+#include <grpc++/channel_interface.h>
+#include <grpc++/client_context.h>
+#include <grpc++/create_channel.h>
+#include <grpc++/credentials.h>
 #include "donkey.h"
 #include "donkey.grpc.pb.h"
 
-namespace donkey {
-namespace protocol {
+static std::mutex grpc_mutex;
+static int grpc_ref = 0;
 
-class DonkeyServiceImpl final : public Donkey::Service {
+static void grpc_check_init () {
+    std::lock_guard<std::mutex> lock(grpc_mutex);
+    if (grpc_ref == 0) {
+        grpc_init();
+    }
+    ++grpc_ref;
+}
+
+static void grpc_check_shutdown () {
+    std::lock_guard<std::mutex> lock(grpc_mutex);
+    --grpc_ref;
+    if (grpc_ref == 0) {
+        grpc_shutdown();
+    }
+}
+
+
+namespace donkey {
+
+class DonkeyServiceImpl final : public protocol::Donkey::Service {
     Server *server;
 
-    void extract (string const &url, string const &content, Object *object) const {
-        if (!url.empty()) {
-            server->extract_url(url, object);
-        }
-        else if (!content.empty()) {
-            server->extract(content, object);
-        }
-        else {
-            BOOST_VERIFY(0);
-        }
-    }
 public:
     DonkeyServiceImpl (Server *s): server(s) {
     }
 
-    virtual ::grpc::Status search(::grpc::ServerContext* context, const SearchRequest* request, SearchResponse* response) {
-        Object object;
-        extract(request->url(), request->content(), &object);
-        SearchParams params;
-        params.K = request->k();
-        params.R = request->r();
-        params.hint_K = request->hint_k();
-        params.hint_R = request->hint_r();
-        vector<donkey::Hit> hits;
-        server->search(request->db(), object, params, &hits);
-        for (auto const &hit: hits) {
+    virtual ::grpc::Status ping(::grpc::ServerContext* context, const protocol::PingRequest* request, protocol::PingResponse* response) {
+        LOG(info) << "ping";
+        return ::grpc::Status::OK;
+    }
+
+    virtual ::grpc::Status search(::grpc::ServerContext* context, const protocol::SearchRequest* request, protocol::SearchResponse* response) {
+        SearchRequest req;
+        req.db = request->db();
+        req.raw = request->raw();
+        req.url = request->url();
+        req.content = request->content();
+        req.K = request->k();
+        req.R = request->r();
+        req.hint_K = request->hint_k();
+        req.hint_R = request->hint_r();
+
+        SearchResponse resp;
+
+        server->search(req, &resp);
+        response->set_time(resp.time);
+        response->set_load_time(resp.load_time);
+        response->set_filter_time(resp.filter_time);
+        response->set_rank_time(resp.rank_time);
+        for (auto const &hit: resp.hits) {
             auto ptr = response->add_hits();
             ptr->set_key(hit.key);
             ptr->set_score(hit.score);
@@ -46,28 +72,123 @@ public:
         return grpc::Status::OK;
     }
 
-    virtual ::grpc::Status insert(::grpc::ServerContext* context, const InsertRequest* request, InsertResponse* response) {
-        Object object;
-        extract(request->url(), request->content(), &object);
-        server->insert(request->db(), request->key(), &object);
+    virtual ::grpc::Status insert(::grpc::ServerContext* context, const protocol::InsertRequest* request, protocol::InsertResponse* response) {
+        InsertRequest req;
+        req.db = request->db();
+        req.key = request->key();
+        req.raw = request->raw();
+        req.url = request->url();
+        req.content = request->content();
+
+        InsertResponse resp;
+        server->insert(req, &resp);
+        response->set_time(resp.time);
+        response->set_load_time(resp.load_time);
+        response->set_journal_time(resp.journal_time);
+        response->set_index_time(resp.index_time);
         return grpc::Status::OK;
     }
 
-    virtual ::grpc::Status status(::grpc::ServerContext* context, const StatusRequest* request, StatusResponse* response) {
+    virtual ::grpc::Status Misc(::grpc::ServerContext* context, const protocol::MiscRequest* request, protocol::MiscResponse* response) {
+        MiscRequest req;
+        MiscResponse resp;
+        req.method = request->method();
+        req.db = request->db();
+        server->misc(req, &resp);
+        response->set_code(resp.code);
+        response->set_text(resp.text);
         return grpc::Status::OK;
     }
 };
-}
 
-void run_service (Config const &config, Server *server) {
+void run_server (Config const &config, Server *server) {
+    grpc_check_init();
     string server_address(config.get<string>("donkey.grpc.server.address", "0.0.0.0:50051"));
-    protocol::DonkeyServiceImpl service(server);
+    DonkeyServiceImpl service(server);
     grpc::ServerBuilder builder;
     builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
     builder.RegisterService(&service);
     std::unique_ptr<grpc::Server> grpc_server(builder.BuildAndStart());
     LOG(info) << "Server listening on " << server_address;
     grpc_server->Wait();
+    grpc_check_shutdown();
 }
 
+class DonkeyClientImpl: public Service {
+    mutable protocol::Donkey::Stub *stub;
+    mutable ::grpc::ClientContext context;
+public:
+    DonkeyClientImpl (Config const &config) {
+        grpc_check_init();
+        stub = new protocol::Donkey::Stub(grpc::CreateChannel(config.get<string>("donkey.grpc.client.server", "localhost:50051"), grpc::InsecureCredentials(), grpc::ChannelArguments()));
+        BOOST_VERIFY(stub);
+    }
+
+    ~DonkeyClientImpl () {
+        delete stub;
+        grpc_check_shutdown();
+    }
+
+    void ping () const {
+        protocol::PingRequest req;
+        protocol::PingResponse resp;
+        stub->ping(&context, req, &resp);
+    }
+
+    void insert (InsertRequest const &request, InsertResponse *response) {
+        protocol::InsertRequest req;
+        protocol::InsertResponse resp;
+        req.set_db(request.db);
+        req.set_raw(request.raw);
+        req.set_url(request.url);
+        req.set_content(request.content);
+        req.set_key(request.key);
+        stub->insert(&context, req, &resp);
+        response->time = resp.time();
+        response->load_time = resp.load_time();
+        response->journal_time = resp.journal_time();
+        response->index_time = resp.index_time();
+    }
+
+    void search (SearchRequest const &request, SearchResponse *response) const {
+        protocol::SearchRequest req;
+        protocol::SearchResponse resp;
+        req.set_db(request.db);
+        req.set_raw(request.raw);
+        req.set_url(request.url);
+        req.set_content(request.content);
+        req.set_k(request.K);
+        req.set_r(request.R);
+        req.set_hint_k(request.hint_K);
+        req.set_hint_r(request.hint_R);
+        stub->search(&context, req, &resp);
+        response->time = resp.time();
+        response->load_time = resp.load_time();
+        response->filter_time = resp.filter_time();
+        response->rank_time = resp.rank_time();
+        response->hits.clear();
+        int sz = resp.hits_size();
+        for (int i = 0; i < sz; ++i) {
+            auto &h = resp.hits(i);
+            Hit hit;
+            hit.key = h.key();
+            hit.score = h.score();
+            response->hits.push_back(hit);
+        }
+    }
+
+    void misc (MiscRequest const &request, MiscResponse *response) {
+        protocol::MiscRequest req;
+        protocol::MiscResponse resp;
+        req.set_method(request.method);
+        req.set_db(request.db);
+        stub->misc(&context, req, &resp);
+        response->code = resp.code();
+        response->text = resp.text();
+    }
+};
+
+Service *make_client (Config const &config) {
+    return new DonkeyClientImpl(config);
+}
 }

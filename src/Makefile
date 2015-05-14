@@ -10,7 +10,7 @@ include Makefile.protocol.inc
 
 CXXFLAGS += -std=c++11 -O3 -g $(EXTRA_CXXFLAGS) -Igrpc -I$(PWD) -DBOOST_LOG_DYN_LINK
 LDFLAGS += $(EXTRA_LDFLAGS)
-LDLIBS += -lkgraph $(PROTOCOL_LIBS) -lboost_timer -lboost_chrono -lboost_program_options -lboost_log -lboost_log_setup -lboost_thread -lboost_system $(EXTRA_LIBS) -lpthread -lrt -ldl
+LDLIBS += -lkgraph $(PROTOCOL_LIBS) -lboost_timer -lboost_chrono -lboost_program_options -lboost_log -lboost_log_setup -lboost_thread -lboost_filesystem -lboost_system $(EXTRA_LIBS) -lpthread -lrt -ldl
 
 X_HEADERS = $(patsubst %.h, plugin/%.h, $(EXTRA_HEADERS))
 X_OBJS = $(patsubst %.cpp, plugin/%.o, $(EXTRA_SOURCES))
@@ -25,7 +25,7 @@ server:	$(TAGS) $(SERVER_OBJS) $(HEADERS)
 	$(CXX) $(LDFLAGS) $(SERVER_OBJS) $(LDLIBS) -o $@ 
 
 client:	$(TAGS) $(CLIENT_OBJS) $(HEADERS)
-	$(CXX) $(LDFLAGS) $(SERVER_OBJS) $(LDLIBS) -o $@ 
+	$(CXX) $(LDFLAGS) $(CLIENT_OBJS) $(LDLIBS) -o $@ 
 
 build-info:	build-info.cpp $(HEADERS)
 	$(CXX) $(LDFLAGS) build-info.cpp $(LDLIBS) -o $@
