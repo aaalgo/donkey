@@ -108,6 +108,13 @@ namespace donkey {
         fs::remove(path);
     }
 
+    static bool test_url (string const &url) {
+        if (url.compare(0, 7, "http://") == 0) return true;
+        if (url.compare(0, 8, "https://") == 0) return true;
+        if (url.compare(0, 6, "ftp://") == 0) return true;
+        return false;
+    }
+
     void Server::loadObject (ObjectRequest const &request, Object *object) const {
         namespace fs = boost::filesystem;
         fs::path path;
@@ -116,12 +123,17 @@ namespace donkey {
             if (request.content.size()) {
                 throw RequestError("both url and content set");
             }
-            is_url = true;
-            path = fs::unique_path();
-            string cmd = (boost::format("wget -O '%s' '%s'") % path.native() % request.url).str();
-            int r = ::system(cmd.c_str());
-            if (r != 0) {
-                throw ExternalError(cmd);
+            if (test_url) {
+                is_url = true;
+                path = fs::unique_path();
+                string cmd = (boost::format("wget -O '%s' '%s'") % path.native() % request.url).str();
+                int r = ::system(cmd.c_str());
+                if (r != 0) {
+                    throw ExternalError(cmd);
+                }
+            }
+            else {
+                path = fs::path(request.url);
             }
         }
         

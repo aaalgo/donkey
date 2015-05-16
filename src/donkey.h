@@ -121,6 +121,7 @@ namespace donkey {
         bool raw;
         string url;
         string content;
+        string type;
     };
 
     struct SearchRequest: public ObjectRequest {
@@ -305,7 +306,8 @@ namespace donkey {
                 // update search params
                 vector<unsigned> ids(params.K);
                 vector<float> dists(params.K);
-                unsigned L = kg_index->search(oracle, params, &ids[0], &dists[0], nullptr);
+                //unsigned L = kg_index->search(oracle, params, &ids[0], &dists[0], nullptr);
+                unsigned L = oracle.search(params.K, params.epsilon, &ids[0], &dists[0]);
                 matches->resize(L);
                 for (unsigned i = 0; i < L; ++i) {
                     auto &m = matches->at(i);
@@ -337,7 +339,7 @@ namespace donkey {
         virtual void rebuild () {   // insert must not happen at this time
             if (entries.size() == indexed_size) return;
             KGraph *kg = KGraph::create();
-            LOG(info) << "Rebuilding index...";
+            LOG(info) << "Rebuilding index for " << entries.size() << " features.";
             IndexOracle oracle(this);
             kg->build(oracle, index_params, NULL);
             LOG(info) << "Swapping on new index...";
@@ -396,9 +398,9 @@ namespace donkey {
                     string key;
                     key.resize(head.key_size);
                     is.read((char *)&key[0], key.size());
-                    if (!is) break;
                     Object object;
                     object.read(is);
+                    if (!is) break;
                     callback(head.dbid, key, &object);
                     ++count;
                     off = is.tellg();
@@ -517,6 +519,19 @@ namespace donkey {
                         response->hits.push_back(hit);
                     }
                 }
+                if (Matcher::POLARITY < 0) {
+                    sort(response->hits.begin(),
+                         response->hits.end(),
+                         [](Hit const &h1, Hit const &h2) { return h1.score < h2.score;});
+                }
+                else {
+                    sort(response->hits.begin(),
+                         response->hits.end(),
+                         [](Hit const &h1, Hit const &h2) { return h1.score > h2.score;});
+                }
+                if (response->hits.size() > params.K) {
+                    response->hits.resize(params.K);
+                }
             }
         }
 
@@ -624,6 +639,7 @@ namespace donkey {
         }
 
         void misc (MiscRequest const &request, MiscResponse *response) {
+            LOG(info) << "misc operation: " << request.method;
             if (request.method == "reindex") {
                 check_dbid(request.db);
                 dbs[request.db]->reindex();

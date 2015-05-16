@@ -60,9 +60,9 @@ namespace donkey {
             }
         };
 
-        template <unsigned D>
-        struct ByteHamming: public Distance {
-            typedef VectorFeature<char, D> feature_type;
+        template <typename T, unsigned D>
+        struct TypeHamming: public Distance {
+            typedef VectorFeature<T, D> feature_type;
             static float apply (feature_type const &v1, feature_type const &v2) {
                 int v = 0;
                 for (unsigned i = 0; i < D; ++i) {
@@ -137,7 +137,7 @@ namespace donkey {
             }
         }
 
-        void swap (MultiPartObject<T> &v) {
+        void swap (MultiPartObject<T, D> &v) {
             std::swap(parts, v.parts);
         }
     };

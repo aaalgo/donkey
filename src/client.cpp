@@ -11,6 +11,9 @@ int main (int argc, char *argv[]) {
     uint32_t db;
     bool raw;
     bool content;
+    bool verbose;
+    SearchRequest search;
+    
 
     namespace po = boost::program_options;
     po::options_description desc("Allowed options");
@@ -21,6 +24,12 @@ int main (int argc, char *argv[]) {
         ("method", po::value(&method)->default_value("ping"), "")
         ("db", po::value(&db)->default_value(0), "")
         ("raw", "")
+        ("content", "")
+        (",K", po::value(&search.K)->default_value(1), "")
+        (",R", po::value(&search.R)->default_value(0), "")
+        ("hint_K", po::value(&search.hint_K)->default_value(1), "")
+        ("hint_R", po::value(&search.hint_R)->default_value(0), "")
+        ("verbose,v", "")
         ;
 
     po::positional_options_description p;
@@ -41,6 +50,7 @@ int main (int argc, char *argv[]) {
 
     raw = vm.count("raw");
     content = vm.count("content");
+    verbose = vm.count("verbose");
 
     Config config;
     LoadConfig(config_path, &config);
@@ -66,10 +76,38 @@ int main (int argc, char *argv[]) {
                 req.url = url;
             }
             client->insert(req, &resp);
-            cout << resp.time << '\t' << resp.load_time << '\t' << resp.journal_time << '\t' << resp.index_time << endl;
+            cout << key;
+            if (verbose) {
+                cout << '\t' << resp.time << '\t' << resp.load_time << '\t' << resp.journal_time << '\t' << resp.index_time << endl;
+            }
+            cout << endl;
         }
     }
     else if (method == "search") {
+        string key;
+        string url;
+        while (cin >> key >> url) {
+            SearchRequest req = search;
+            SearchResponse resp;
+            req.db = db;
+            req.raw = raw;
+            if (content) {
+                ReadFile(url, &req.content);
+            }
+            else {
+                req.url = url;
+            }
+            client->search(req, &resp);
+            if (verbose) {
+                cout << key << ": " << resp.time << '\t' << resp.load_time << '\t' << resp.filter_time << '\t' << resp.rank_time << endl;
+            }
+            for (auto const &h: resp.hits) {
+                cout << key << " => " << h.key << '\t' << h.score << endl;
+            }
+            if (resp.hits.empty()) {
+                cout << key << endl;
+            }
+        }
     }
     else {
         MiscRequest req;

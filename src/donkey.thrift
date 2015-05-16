@@ -1,12 +1,21 @@
-namespace cpp donkey
+namespace cpp donkey.api
+
+struct PingRequest {
+}
+
+struct PingResponse {
+}
 
 struct SearchRequest {
     1:required i32 db;
-    2:required string url;
-    3:required string content;
-    4:required i32 K;
-    5:required double R;
-    6:required list<double> params;
+    2:required bool raw;
+    3:required string url;
+    4:required string content;
+    5:required string type;
+    6:required i32 K;
+    7:required double R;
+    8:required i32 hint_K;
+    9:required double hint_R;
 }
 
 struct Hit {
@@ -15,29 +24,43 @@ struct Hit {
 }
 
 struct SearchResponse {
-    1:required list<Hit> hits;
+    1:required double time;
+    2:required double load_time;
+    3:required double filter_time;
+    4:required double rank_time;
+    5:required list<Hit> hits;
 }
 
 struct InsertRequest {
     1:required i32 db;
     2:required string key;
-    3:required string url;
-    4:required string content;
+    3:required bool raw;
+    4:required string url;
+    5:required string content;
+    6:required string type;
 }
 
 struct InsertResponse {
+    1:required double time;
+    2:required double load_time;
+    3:required double journal_time;
+    4:required double index_time;
 }
 
-struct StatusRequest {
+struct MiscRequest {
+    1:required string method;
+    2:required i32 db;
 }
 
-struct StatusResponse {
-    1:required list<double> stats;
+struct MiscResponse {
+    1:required i32 code;
+    2:required string text;
 }
 
-service donkey {
+service Donkey {
+    PingResponse ping (1:required PingRequest request);
     SearchResponse search (1:required SearchRequest request);
     InsertResponse insert (1:required InsertRequest request);
-    StatusResponse status (1:required StatusRequest request);
+    MiscResponse misc (1:required MiscRequest request);
 }
 

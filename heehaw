@@ -26,12 +26,6 @@ then
 	exit 3
 fi
 
-if [ ! -f $PLUGIN_DIR/object.proto ]
-then
-	echo Missing $PLUGIN_DIR/object.proto
-	exit 4
-fi
-
 . plugins/$PLUGIN/config.sh
 
 rm -f src/Makefile.protocol.inc
@@ -41,8 +35,11 @@ then
 elif [ "$PROTOCOL" = grpc ]
 then
 	ln -s Makefile.grpc.inc src/Makefile.protocol.inc
+elif [ "$PROTOCOL" = thrift ]
+then
+	ln -s Makefile.thrift.inc src/Makefile.protocol.inc
 else
-	echo PROTOCOL should be http or grpc
+	echo PROTOCOL should be http or grpc or thrift
 	exit 5
 fi
 

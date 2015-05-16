@@ -8,7 +8,7 @@ clean:
 
 include Makefile.protocol.inc
 
-CXXFLAGS += -std=c++11 -O3 -g $(EXTRA_CXXFLAGS) -Igrpc -I$(PWD) -DBOOST_LOG_DYN_LINK
+CXXFLAGS += -std=c++11 -O3 -g $(EXTRA_CXXFLAGS) -Igrpc -Ithrift -I$(PWD) -DBOOST_LOG_DYN_LINK
 LDFLAGS += $(EXTRA_LDFLAGS)
 LDLIBS += -lkgraph $(PROTOCOL_LIBS) -lboost_timer -lboost_chrono -lboost_program_options -lboost_log -lboost_log_setup -lboost_thread -lboost_filesystem -lboost_system $(EXTRA_LIBS) -lpthread -lrt -ldl
 
@@ -26,6 +26,9 @@ server:	$(TAGS) $(SERVER_OBJS) $(HEADERS)
 
 client:	$(TAGS) $(CLIENT_OBJS) $(HEADERS)
 	$(CXX) $(LDFLAGS) $(CLIENT_OBJS) $(LDLIBS) -o $@ 
+
+%.o:	%.cpp $(HEADERS)
+	$(CXX) $(CXXFLAGS) -c $*.cpp -o $*.o
 
 build-info:	build-info.cpp $(HEADERS)
 	$(CXX) $(LDFLAGS) build-info.cpp $(LDLIBS) -o $@

@@ -1,6 +1,13 @@
 syntax = "proto3";
 
-package donkey.protocol;
+package donkey.api;
+
+message PingRequest {
+}
+
+message PingResponse {
+}
+
 
 message SearchRequest {
     // the query object is always passed in either URL or content.
@@ -11,15 +18,16 @@ message SearchRequest {
     bool raw = 2;
     string url = 3;
     bytes content = 4;
+    string type = 5;
     // Up to K most similar objects, falling with in radius R
     // are returned.
     // Both K and R constraints must be satisfied.
-    int32 K = 5;   // 0 means no constraint on K
-    double R = 6;   // 0 means no constraint on R
-    int32 hint_K = 7;
-    double hint_R = 8;
+    int32 K = 6;   // 0 means no constraint on K
+    double R = 7;   // 0 means no constraint on R
+    int32 hint_K = 8;
+    double hint_R = 9;
     // other parameters
-    repeated double params = 9;
+    repeated double params = 10;
 }
 
 message Hit {
@@ -42,6 +50,7 @@ message InsertRequest {
     // either url or content should be non-empty and used
     string url = 4;
     bytes content = 5;
+    string type = 6;
 }
 
 message InsertResponse {
@@ -59,12 +68,6 @@ message MiscRequest {
 message MiscResponse {
     int32 code = 1;
     string text = 2;
-}
-
-message PingRequest {
-}
-
-message PingResponse {
 }
 
 service Donkey {

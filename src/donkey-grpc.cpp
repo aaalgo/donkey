@@ -34,19 +34,19 @@ static void grpc_check_shutdown () {
 
 namespace donkey {
 
-class DonkeyServiceImpl final : public protocol::Donkey::Service {
+class DonkeyServiceImpl final : public api::Donkey::Service {
     Server *server;
 
 public:
     DonkeyServiceImpl (Server *s): server(s) {
     }
 
-    virtual ::grpc::Status ping(::grpc::ServerContext* context, const protocol::PingRequest* request, protocol::PingResponse* response) {
+    virtual ::grpc::Status ping(::grpc::ServerContext* context, const api::PingRequest* request, api::PingResponse* response) {
         LOG(info) << "ping";
         return ::grpc::Status::OK;
     }
 
-    virtual ::grpc::Status search(::grpc::ServerContext* context, const protocol::SearchRequest* request, protocol::SearchResponse* response) {
+    virtual ::grpc::Status search(::grpc::ServerContext* context, const api::SearchRequest* request, api::SearchResponse* response) {
         SearchRequest req;
         req.db = request->db();
         req.raw = request->raw();
@@ -72,7 +72,7 @@ public:
         return grpc::Status::OK;
     }
 
-    virtual ::grpc::Status insert(::grpc::ServerContext* context, const protocol::InsertRequest* request, protocol::InsertResponse* response) {
+    virtual ::grpc::Status insert(::grpc::ServerContext* context, const api::InsertRequest* request, api::InsertResponse* response) {
         InsertRequest req;
         req.db = request->db();
         req.key = request->key();
@@ -89,7 +89,7 @@ public:
         return grpc::Status::OK;
     }
 
-    virtual ::grpc::Status Misc(::grpc::ServerContext* context, const protocol::MiscRequest* request, protocol::MiscResponse* response) {
+    virtual ::grpc::Status misc(::grpc::ServerContext* context, const api::MiscRequest* request, api::MiscResponse* response) {
         MiscRequest req;
         MiscResponse resp;
         req.method = request->method();
@@ -115,12 +115,11 @@ void run_server (Config const &config, Server *server) {
 }
 
 class DonkeyClientImpl: public Service {
-    mutable protocol::Donkey::Stub *stub;
-    mutable ::grpc::ClientContext context;
+    mutable api::Donkey::Stub *stub;
 public:
     DonkeyClientImpl (Config const &config) {
         grpc_check_init();
-        stub = new protocol::Donkey::Stub(grpc::CreateChannel(config.get<string>("donkey.grpc.client.server", "localhost:50051"), grpc::InsecureCredentials(), grpc::ChannelArguments()));
+        stub = new api::Donkey::Stub(grpc::CreateChannel(config.get<string>("donkey.grpc.client.server", "localhost:50051"), grpc::InsecureCredentials(), grpc::ChannelArguments()));
         BOOST_VERIFY(stub);
     }
 
@@ -130,14 +129,16 @@ public:
     }
 
     void ping () const {
-        protocol::PingRequest req;
-        protocol::PingResponse resp;
+        ::grpc::ClientContext context;
+        api::PingRequest req;
+        api::PingResponse resp;
         stub->ping(&context, req, &resp);
     }
 
     void insert (InsertRequest const &request, InsertResponse *response) {
-        protocol::InsertRequest req;
-        protocol::InsertResponse resp;
+        ::grpc::ClientContext context;
+        api::InsertRequest req;
+        api::InsertResponse resp;
         req.set_db(request.db);
         req.set_raw(request.raw);
         req.set_url(request.url);
@@ -151,8 +152,9 @@ public:
     }
 
     void search (SearchRequest const &request, SearchResponse *response) const {
-        protocol::SearchRequest req;
-        protocol::SearchResponse resp;
+        ::grpc::ClientContext context;
+        api::SearchRequest req;
+        api::SearchResponse resp;
         req.set_db(request.db);
         req.set_raw(request.raw);
         req.set_url(request.url);
@@ -178,8 +180,9 @@ public:
     }
 
     void misc (MiscRequest const &request, MiscResponse *response) {
-        protocol::MiscRequest req;
-        protocol::MiscResponse resp;
+        ::grpc::ClientContext context;
+        api::MiscRequest req;
+        api::MiscResponse resp;
         req.set_method(request.method);
         req.set_db(request.db);
         stub->misc(&context, req, &resp);
