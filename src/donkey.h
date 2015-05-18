@@ -103,6 +103,7 @@ namespace donkey {
     DEFINE_ERROR(OutOfMemoryError, 0x0004);
     DEFINE_ERROR(FileSystemError, 0x0008);
     DEFINE_ERROR(RequestError, 0x0016);
+    DEFINE_ERROR(ConfigError, 0x0032);
 #undef DEFINE_ERROR
 
     struct Feature;
@@ -130,7 +131,7 @@ namespace donkey {
 
     struct ObjectRequest {
         bool raw;           // whether the input is a raw object, or a feature file.
-        string object;      // if url starts with http://, etc, it is downloaded from web
+        string url;      // if url starts with http://, etc, it is downloaded from web
                             // otherwise it's treated as a local path.
         string content;     // the content of object
                             // one and only one of object and content may be set
@@ -197,19 +198,6 @@ namespace donkey {
     Index *create_kgraph_index (Config const &);
     Index *create_lsh_index (Config const &);
 
-    // Feature extractor interface.
-    class ExtractorBase {
-    public:
-        virtual ~ExtractorBase () {}
-        virtual void extract_path (string const &path, Object *object) const {
-            string content;
-            ReadFile(path, &content);
-            extract(content, object);
-        }
-        virtual void extract (string const &content, Object *object) const; 
-    };
-
-
     // utility functions
     
     static inline void ReadFile (const std::string &path, std::string *binary) {
@@ -233,6 +221,20 @@ namespace donkey {
         ofstream os(path.c_str(), ios::binary);
         os.write(&binary[0], binary.size());
     }
+
+    // Feature extractor interface.
+    class ExtractorBase {
+    public:
+        virtual ~ExtractorBase () {}
+        virtual void extract_path (string const &path, Object *object) const {
+            string content;
+            ReadFile(path, &content);
+            extract(content, object);
+        }
+        virtual void extract (string const &content, Object *object) const; 
+    };
+
+
 }
 
 // data-type-specific configuration
@@ -351,9 +353,17 @@ namespace donkey {
         Matcher matcher;
     public:
         DB (Config const &config) 
-            : index(create_kgraph_index(config)),
+            : index(nullptr),
             matcher(config)
         {
+            string algo = config.get<string>("donkey.index.algorithm", "lsh");
+            if (algo == "lsh") {
+                index = create_lsh_index(config);
+            }
+            else if (algo == "kgraph") {
+                index = create_kgraph_index(config);
+            }
+            else throw ConfigError("unknown index algorithm");
             BOOST_VERIFY(index);
         }
 

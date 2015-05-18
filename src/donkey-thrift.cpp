@@ -1,3 +1,4 @@
+#include "donkey-signal.h"
 #include <future>
 #include <boost/log/utility/setup/console.hpp>
 #include <thrift/protocol/TBinaryProtocol.h>
@@ -8,9 +9,7 @@
 #include <thrift/transport/TServerSocket.h>
 #include <thrift/transport/TSocket.h>
 #include <thrift/transport/TTransportUtils.h>
-
 #include "donkey.h"
-#include "donkey-signal.h"
 #include "Donkey.h"
 
 namespace donkey {
