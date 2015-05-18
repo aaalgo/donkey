@@ -46,13 +46,14 @@ namespace donkey {
 
     // maximal number of DBs
     static constexpr size_t DEFAULT_MAX_DBS = 256;
-    static constexpr size_t MAX_FEATURES = 10000;
-    static constexpr size_t MAX_BINARY = 128 * 1024 * 1024;
+    static constexpr size_t MAX_FEATURES = 10000;   // maximal features per object
+    static constexpr size_t MAX_BINARY = 128 * 1024 * 1024; // maximal raw object size, 128M
 
     // Configuration
     typedef boost::property_tree::ptree Config;
 
     void LoadConfig (string const &path, Config *);
+    // we allow overriding configuration options in the form of "KEY=VALUE"
     void OverrideConfig (std::vector<std::string> const &overrides, Config *);
 
     // Logging
@@ -62,6 +63,12 @@ namespace donkey {
 
     //void DumpStack ();
 
+    // Timing a piece of code, usage
+    // {
+    //      double time;
+    //      Timer timer(&time);
+    //      // code to be timed
+    // }
     class Timer {
         boost::timer::cpu_timer timer;
         double *result;
@@ -91,10 +98,11 @@ namespace donkey {
 
     static constexpr int64_t ErrorCode_Success = 0;
     static constexpr int64_t ErrorCode_Unknown = -1;
-    DEFINE_ERROR(OutOfMemoryError, 0x0001);
-    DEFINE_ERROR(FileSystemError, 0x0002);
-    DEFINE_ERROR(RequestError, 0x0002);
+    DEFINE_ERROR(InternalError, 0x0001);
     DEFINE_ERROR(ExternalError, 0x0002);
+    DEFINE_ERROR(OutOfMemoryError, 0x0004);
+    DEFINE_ERROR(FileSystemError, 0x0008);
+    DEFINE_ERROR(RequestError, 0x0016);
 #undef DEFINE_ERROR
 
     struct Feature;
@@ -102,9 +110,12 @@ namespace donkey {
 
     // matching of a single feature within object
     struct Hint {   
+        // tag: object may have multiple features, tag is the index of feature
+        // tag could also have other meaning in a more generic setting.
         uint32_t dtag;  // data tag, tag of a matched feature
         uint32_t qtag;  // query tag
-        float value;    // = distance for k-nn search
+        float value;    // = distance for k-nn search, could be of other meanings
+                        // that's why we don't call it distance
     };
 
     struct Candidate {
@@ -118,10 +129,12 @@ namespace donkey {
     };
 
     struct ObjectRequest {
-        bool raw;
-        string url;
-        string content;
-        string type;
+        bool raw;           // whether the input is a raw object, or a feature file.
+        string object;      // if url starts with http://, etc, it is downloaded from web
+                            // otherwise it's treated as a local path.
+        string content;     // the content of object
+                            // one and only one of object and content may be set
+        string type;        // passed to feature extraction plugin for extra info
     };
 
     struct SearchRequest: public ObjectRequest {
@@ -165,6 +178,7 @@ namespace donkey {
     // Index is not synchronized -- usually insertions are done in batch,
     // even adding a single object could involve multiple insertions.
     // synchronizing individual insertion could be too expensive.
+    // Synchronization is done at DB level.
     class Index {
     public:
         struct Match {
@@ -180,6 +194,24 @@ namespace donkey {
         virtual void rebuild () = 0;
     };
 
+    Index *create_kgraph_index (Config const &);
+    Index *create_lsh_index (Config const &);
+
+    // Feature extractor interface.
+    class ExtractorBase {
+    public:
+        virtual ~ExtractorBase () {}
+        virtual void extract_path (string const &path, Object *object) const {
+            string content;
+            ReadFile(path, &content);
+            extract(content, object);
+        }
+        virtual void extract (string const &content, Object *object) const; 
+    };
+
+
+    // utility functions
+    
     static inline void ReadFile (const std::string &path, std::string *binary) {
         // file could not be too big
         binary->clear();
@@ -201,155 +233,12 @@ namespace donkey {
         ofstream os(path.c_str(), ios::binary);
         os.write(&binary[0], binary.size());
     }
-
-    class ExtractorBase {
-    public:
-        virtual ~ExtractorBase () {}
-        virtual void extract_path (string const &path, Object *object) const {
-            string content;
-            ReadFile(path, &content);
-            extract(content, object);
-        }
-        virtual void extract (string const &content, Object *object) const; 
-    };
-
 }
 
 // data-type-specific configuration
 #include "plugin/config.h"
 
-#include <kgraph.h>
-
 namespace donkey {
-
-    using kgraph::KGraph;
-
-    // Index is not mutex-protected.
-    class KGraphIndex: public Index {
-        struct Entry {
-            uint32_t object;
-            uint32_t tag;
-            Feature const *feature;
-        };
-        size_t indexed_size;
-        vector<Entry> entries;
-
-        friend class IndexOracle;
-        friend class SearchOracle;
-
-        class IndexOracle: public kgraph::IndexOracle {
-            KGraphIndex *parent;
-        public:
-            IndexOracle (KGraphIndex *p): parent(p) {
-            }
-            virtual unsigned size () const {
-                return parent->entries.size();
-            }   
-            virtual float operator () (unsigned i, unsigned j) const {
-                return (-FeatureSimilarity::POLARITY) *
-                       FeatureSimilarity::apply(*parent->entries[i].feature,
-                                *parent->entries[j].feature);
-            }   
-        };  
-
-        class SearchOracle: public kgraph::SearchOracle {
-            KGraphIndex const *parent;
-            Feature const &query;
-        public:
-            SearchOracle (KGraphIndex const *p, Feature const &q): parent(p), query(q) {
-            }   
-            virtual unsigned size () const {
-                return parent->indexed_size;
-            }   
-            virtual float operator () (unsigned i) const {
-                return FeatureSimilarity::apply(*parent->entries[i].feature, query);
-            }   
-        };
-
-        KGraph::IndexParams index_params;
-        KGraph::SearchParams search_params;
-        KGraph *kg_index;
-    public:
-        KGraphIndex (Config const &config): indexed_size(0), kg_index(nullptr) {
-            index_params.iterations = config.get<unsigned>("donkey.kgraph.index.iterations", index_params.iterations);
-            index_params.L = config.get<unsigned>("donkey.kgraph.index.L", index_params.L);
-            index_params.K = config.get<unsigned>("donkey.kgraph.index.K", index_params.K);
-            index_params.S = config.get<unsigned>("donkey.kgraph.index.S", index_params.S);
-            index_params.R = config.get<unsigned>("donkey.kgraph.index.R", index_params.R);
-            index_params.controls = config.get<unsigned>("donkey.kgraph.index.controls", index_params.controls);
-            index_params.seed = config.get<unsigned>("donkey.kgraph.index.seed", index_params.seed);
-            index_params.delta = config.get<float>("donkey.kgraph.index.delta", index_params.delta);
-            index_params.recall = config.get<float>("donkey.kgraph.index.recall", index_params.recall);
-            index_params.prune = config.get<unsigned>("donkey.kgraph.index.prune", index_params.prune);
-
-            search_params.K = config.get<unsigned>("donkey.kgraph.search.K", search_params.K);
-            search_params.M = config.get<unsigned>("donkey.kgraph.search.M", search_params.M);
-            search_params.P = config.get<unsigned>("donkey.kgraph.search.P", search_params.P);
-            search_params.T = config.get<unsigned>("donkey.kgraph.search.T", search_params.T);
-            search_params.epsilon = config.get<float>("donkey.kgraph.search.epsilon", search_params.epsilon);
-            search_params.seed = config.get<unsigned>("donkey.kgraph.search.seed", search_params.seed);
-        }
-
-        ~KGraphIndex () {
-            if (kg_index) {
-                delete kg_index;
-            }
-        }
-
-        virtual void search (Feature const &query, SearchRequest const &sp, std::vector<Match> *matches) const {
-            matches->clear();
-            if (kg_index) {
-                SearchOracle oracle(this, query);
-                KGraph::SearchParams params(search_params);
-                params.K = sp.hint_K;
-                params.epsilon = sp.hint_R;
-                // update search params
-                vector<unsigned> ids(params.K);
-                vector<float> dists(params.K);
-                //unsigned L = kg_index->search(oracle, params, &ids[0], &dists[0], nullptr);
-                unsigned L = oracle.search(params.K, params.epsilon, &ids[0], &dists[0]);
-                matches->resize(L);
-                for (unsigned i = 0; i < L; ++i) {
-                    auto &m = matches->at(i);
-                    auto const &e = entries[ids[i]];
-                    m.object = e.object;
-                    m.tag = e.tag;
-                    m.distance = dists[i];
-                }
-            }
-            BOOST_VERIFY(indexed_size == entries.size());
-        }
-
-        virtual void insert (uint32_t object, uint32_t tag, Feature const *feature) {
-            Entry e;
-            e.object = object;
-            e.tag = tag;
-            e.feature = feature;
-            entries.push_back(e);
-        }
-
-        virtual void clear () {
-            if (kg_index) {
-                delete kg_index;
-                kg_index = nullptr;
-            }
-            entries.clear();
-        }
-
-        virtual void rebuild () {   // insert must not happen at this time
-            if (entries.size() == indexed_size) return;
-            KGraph *kg = KGraph::create();
-            LOG(info) << "Rebuilding index for " << entries.size() << " features.";
-            IndexOracle oracle(this);
-            kg->build(oracle, index_params, NULL);
-            LOG(info) << "Swapping on new index...";
-            indexed_size = entries.size();
-            std::swap(kg, kg_index);
-            if (kg) {
-                delete kg;
-            }
-        }
-    };
 
     // append & sync are protected.
     class Journal {
@@ -462,7 +351,7 @@ namespace donkey {
         Matcher matcher;
     public:
         DB (Config const &config) 
-            : index(new KGraphIndex(config)),
+            : index(create_kgraph_index(config)),
             matcher(config)
         {
             BOOST_VERIFY(index);
