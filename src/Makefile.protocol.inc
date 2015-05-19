@@ -1,1 +1,1 @@
-Makefile.thrift.inc
+Makefile.grpc.inc

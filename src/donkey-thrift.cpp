@@ -36,10 +36,10 @@ class DonkeyHandler : virtual public api::DonkeyIf {
         req.raw = request.raw;
         req.url = request.url;
         req.content = request.content;
-        req.K = request.K;
-        req.R = request.R;
-        req.hint_K = request.hint_K;
-        req.hint_R = request.hint_R;
+        req.K = request.__isset.K ? request.K : -1;
+        req.R = request.__isset.R ? request.R : NAN;
+        req.hint_K = request.__isset.hint_K ? request.hint_K: -1;
+        req.hint_R = request.__isset.hint_R ? request.hint_R: NAN;
 
         SearchResponse resp;
 
@@ -157,9 +157,13 @@ public:
         req.url = request.url;
         req.content = request.content;
         req.K = request.K;
+        req.__isset.K = true;
         req.R = request.R;
+        req.__isset.R = true;
         req.hint_K = request.hint_K;
+        req.__isset.hint_K = true;
         req.hint_R = request.hint_R;
+        req.__isset.hint_R = true;
         client.search(resp, req);
         response->time = resp.time;
         response->load_time = resp.load_time;

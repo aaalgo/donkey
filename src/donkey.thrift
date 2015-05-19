@@ -12,10 +12,10 @@ struct SearchRequest {
     3:required string url;
     4:required string content;
     5:required string type;
-    6:required i32 K;
-    7:required double R;
-    8:required i32 hint_K;
-    9:required double hint_R;
+    6:optional i32 K;
+    7:optional double R;
+    8:optional i32 hint_K;
+    9:optional double hint_R;
 }
 
 struct Hit {

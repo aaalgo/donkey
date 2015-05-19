@@ -100,6 +100,14 @@ namespace donkey {
         */
     }
 
+    Index::Index (Config const &config)
+        : default_K(config.get<int>("donkey.defaults.hint_K", 1)),
+        default_R(config.get<float>("donkey.defaults.hint_R", donkey::default_hint_R()))
+    {
+        if (default_K <= 0) throw ConfigError("invalid defaults.hint_K");
+        if (!isnormal(default_R)) throw ConfigError("invalid defaults.hint_R");
+    }
+
     void ExtractorBase::extract (string const &content, Object *object) const {
         namespace fs = boost::filesystem;
         fs::path path(fs::unique_path());
