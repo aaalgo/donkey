@@ -6,6 +6,7 @@ all:	$(PROGS)
 clean:
 	rm -rf *.o $(PROGS) grpc thrift *.tag
 
+include plugin/Makefile.inc
 include Makefile.protocol.inc
 
 CXXFLAGS += -std=c++11 -O3 -g $(EXTRA_CXXFLAGS) -Igrpc -Ithrift -I$(PWD) -DBOOST_LOG_DYN_LINK
@@ -18,10 +19,12 @@ X_OBJS = $(patsubst %.cpp, plugin/%.o, $(EXTRA_SOURCES))
 HEADERS = donkey.h plugin/config.h $(X_HEADERS) 
 
 TAGS = protocol.tag
-SERVER_OBJS = server.o donkey.o index-kgraph.o index-lsh.o $(PROTOCOL_OBJS)
-CLIENT_OBJS = client.o donkey.o $(PROTOCOL_OBJS)
+SERVER_OBJS = server.o donkey.o index-kgraph.o index-lsh.o $(PROTOCOL_OBJS) $(X_OBJS)
+CLIENT_OBJS = client.o donkey.o $(PROTOCOL_OBJS) $(X_OBJS)
 
 server:	$(TAGS) $(SERVER_OBJS) $(HEADERS)  
+	echo $(EXTRA_SOURCES)
+	echo $(X_OBJS)
 	$(CXX) $(LDFLAGS) $(SERVER_OBJS) $(LDLIBS) -o $@ 
 
 client:	$(TAGS) $(CLIENT_OBJS) $(HEADERS)

@@ -20,8 +20,7 @@ namespace donkey {
     public:
         Extractor (Config const &config) {
         }
-        void extract_path (string const &url, Object *object) const {
-        }
+        void extract_path (string const &path, Object *object) const;
     };
 
     class Matcher: public TrivialMatcher<FeatureSimilarity> {

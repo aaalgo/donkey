@@ -46,6 +46,8 @@ fi
 rm -rf src/plugin
 ln -s $PWD/$PLUGIN_DIR src/plugin
 
-make -C src
+pushd src
+make 
+popd
 
 

@@ -453,8 +453,7 @@ namespace donkey {
 
     class Service {
     public:
-        virtual ~Service () {
-        }
+        virtual ~Service () = default;
         virtual void ping () const = 0;
         virtual void insert (InsertRequest const &request, InsertResponse *response) = 0;
         virtual void search (SearchRequest const &request, SearchResponse *response) const = 0;

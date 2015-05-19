@@ -1,7 +1,7 @@
 .PHONY:	all clean nuke
 
 all:
-	./heehaw phase
+	./heehaw qbic
 
 clean:
 	make -C src clean
