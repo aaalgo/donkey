@@ -20,7 +20,8 @@ struct SearchRequest {
 
 struct Hit {
     1:required string key;
-    2:required double score;
+    2:required string meta;
+    3:required double score;
 }
 
 struct SearchResponse {
@@ -37,7 +38,8 @@ struct InsertRequest {
     3:required bool raw;
     4:required string url;
     5:required string content;
-    6:required string type;
+    6:required string meta;
+    7:required string type;
 }
 
 struct InsertResponse {

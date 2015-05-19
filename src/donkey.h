@@ -126,6 +126,7 @@ namespace donkey {
 
     struct Hit {
         string key;
+        string meta;
         float score;
     };
 
@@ -157,6 +158,7 @@ namespace donkey {
     struct InsertRequest: public ObjectRequest {
         uint16_t db;
         string key;
+        string meta;
     };
 
     struct InsertResponse {
@@ -222,6 +224,10 @@ namespace donkey {
         os.write(&binary[0], binary.size());
     }
 
+    struct ObjectBase {
+        string meta;
+    };
+
     // Feature extractor interface.
     class ExtractorBase {
     public:
@@ -233,8 +239,6 @@ namespace donkey {
         }
         virtual void extract (string const &content, Object *object) const; 
     };
-
-
 }
 
 // data-type-specific configuration
@@ -253,6 +257,7 @@ namespace donkey {
             uint32_t magic;
             uint16_t dbid;
             uint16_t key_size;
+            uint32_t meta_size;
         };
 
     public:
@@ -268,7 +273,7 @@ namespace donkey {
 
         // fastforward: directly jump to the given offset
         // return maxid
-        int recover (function<void(uint16_t dbid, string const &key, Object *object)> callback) {
+        int recover (function<void(uint16_t dbid, string const &key, string const &meta, Object *object)> callback) {
             size_t off = 0;
             int count = 0;
             do {
@@ -287,12 +292,15 @@ namespace donkey {
                         break;
                     }
                     string key;
+                    string meta;
                     key.resize(head.key_size);
                     is.read((char *)&key[0], key.size());
+                    meta.resize(head.meta_size);
+                    is.read((char *)&meta[0], meta.size());
                     Object object;
                     object.read(is);
                     if (!is) break;
-                    callback(head.dbid, key, &object);
+                    callback(head.dbid, key, meta, &object);
                     ++count;
                     off = is.tellg();
                 }
@@ -320,16 +328,19 @@ namespace donkey {
             BOOST_VERIFY(str.is_open());
         }
 
-        void append (uint16_t dbid, string const &key, Object const &object) {
+        void append (uint16_t dbid, string const &key, string const &meta, Object const &object) {
             BOOST_VERIFY(str.is_open());
             std::lock_guard<std::mutex> lock(mutex); 
             RecordHead head;
             head.magic = MAGIC;
             head.dbid = dbid;
             head.key_size = key.size();
+            head.meta_size = meta.size();
             str.write(reinterpret_cast<char const *>(&head), sizeof(head));
             BOOST_VERIFY(str);
             str.write(&key[0], key.size());
+            BOOST_VERIFY(str);
+            str.write(&meta[0], meta.size());
             BOOST_VERIFY(str);
             object.write(str);
         }
@@ -345,6 +356,7 @@ namespace donkey {
     class DB {
         struct Record {
             string key;
+            string meta;
             Object object;
         };
         vector<Record *> records;
@@ -372,9 +384,10 @@ namespace donkey {
             delete index;
         }
 
-        void insert (string const &key, Object *object) {
+        void insert (string const &key, string const &meta, Object *object) {
             Record *rec = new Record;
             rec->key = key;
+            rec->meta = meta;
             object->swap(rec->object);
             unique_lock<shared_mutex> lock(mutex);
             size_t id = records.size();
@@ -414,6 +427,7 @@ namespace donkey {
                     if (score  >= R) {
                         Hit hit;
                         hit.key = records[id]->key;
+                        hit.meta = records[id]->meta;
                         hit.score = score;
                         response->hits.push_back(hit);
                     }
@@ -484,9 +498,9 @@ namespace donkey {
                 db = new DB(config);
             }
             // recover journal 
-            journal.recover([this](uint16_t dbid, string const &key, Object *object){
+            journal.recover([this](uint16_t dbid, string const &key, string const &meta, Object *object){
                 try {
-                    dbs[dbid]->insert(key, object);
+                    dbs[dbid]->insert(key, meta, object);
                 }
                 catch (...) {
                 }
@@ -516,12 +530,12 @@ namespace donkey {
             }
             {
                 Timer timer2(&response->journal_time);
-                journal.append(request.db, request.key, object);
+                journal.append(request.db, request.key, request.meta, object);
             }
             {
                 Timer timer3(&response->index_time);
                 // must come after journal, as db insert could change object content
-                dbs[request.db]->insert(request.key, &object);
+                dbs[request.db]->insert(request.key, request.meta, &object);
             }
         }
 

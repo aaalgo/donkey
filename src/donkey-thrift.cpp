@@ -52,6 +52,7 @@ class DonkeyHandler : virtual public api::DonkeyIf {
         for (auto const &hit: resp.hits) {
             api::Hit h;
             h.key = hit.key;
+            h.meta = hit.meta;
             h.score = hit.score;
             response.hits.push_back(h);
         }
@@ -61,6 +62,7 @@ class DonkeyHandler : virtual public api::DonkeyIf {
         InsertRequest req;
         req.db = request.db;
         req.key = request.key;
+        req.meta = request.meta;
         req.raw = request.raw;
         req.url = request.url;
         req.content = request.content;
@@ -139,6 +141,7 @@ public:
         req.url = request.url;
         req.content = request.content;
         req.key = request.key;
+        req.meta = request.meta;
         client.insert(resp, req);
         response->time = resp.time;
         response->load_time = resp.load_time;
@@ -166,6 +169,7 @@ public:
         for (auto const &h: resp.hits) {
             Hit hit;
             hit.key = h.key;
+            hit.meta = h.meta;
             hit.score = h.score;
             response->hits.push_back(hit);
         }

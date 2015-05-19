@@ -76,7 +76,7 @@ namespace donkey {
     }
 
     template <typename T>
-    struct SingleFeatureObject {
+    struct SingleFeatureObject: public ObjectBase {
         typedef T feature_type;
         feature_type feature;
         void enumerate (function<void(unsigned tag, feature_type const *)> callback) const {
@@ -97,7 +97,7 @@ namespace donkey {
     };
 
     template <typename T, typename D = void>
-    struct MultiPartObject {
+    struct MultiPartObject: public ObjectBase {
         typedef T feature_type;
         typedef D data_type;
         struct Part {

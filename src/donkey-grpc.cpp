@@ -67,6 +67,7 @@ public:
         for (auto const &hit: resp.hits) {
             auto ptr = response->add_hits();
             ptr->set_key(hit.key);
+            ptr->set_meta(hit.meta);
             ptr->set_score(hit.score);
         }
         return grpc::Status::OK;
@@ -76,6 +77,7 @@ public:
         InsertRequest req;
         req.db = request->db();
         req.key = request->key();
+        req.meta = request->meta();
         req.raw = request->raw();
         req.url = request->url();
         req.content = request->content();
@@ -144,6 +146,7 @@ public:
         req.set_url(request.url);
         req.set_content(request.content);
         req.set_key(request.key);
+        req.set_meta(request.meta);
         stub->insert(&context, req, &resp);
         response->time = resp.time();
         response->load_time = resp.load_time();
@@ -174,6 +177,7 @@ public:
             auto &h = resp.hits(i);
             Hit hit;
             hit.key = h.key();
+            hit.meta = h.meta();
             hit.score = h.score();
             response->hits.push_back(hit);
         }

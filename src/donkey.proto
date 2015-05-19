@@ -32,7 +32,8 @@ message SearchRequest {
 
 message Hit {
     bytes key = 1;
-    double score = 2;
+    string meta = 2;
+    double score = 3;
 }
 
 message SearchResponse {
@@ -50,7 +51,8 @@ message InsertRequest {
     // either url or content should be non-empty and used
     string url = 4;
     bytes content = 5;
-    string type = 6;
+    string meta = 6;
+    string type = 7;
 }
 
 message InsertResponse {
