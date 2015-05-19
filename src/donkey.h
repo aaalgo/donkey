@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <cmath>
 #include <iostream>
 #include <fstream>
 #include <string>
@@ -12,6 +13,7 @@
 #include <vector>
 #include <unordered_map>
 #include <mutex>
+#include <limits>
 #include <functional>
 #include <boost/thread/locks.hpp>
 #include <boost/thread/shared_mutex.hpp>
@@ -30,6 +32,7 @@ namespace donkey {
     using std::function;
     using std::string;
     using std::runtime_error;
+    using std::numeric_limits;
     using std::fstream;
     using std::array;
     using std::vector;
@@ -38,6 +41,7 @@ namespace donkey {
     using std::ostream;
     using std::ifstream;
     using std::ofstream;
+    using std::isnormal;
     using boost::shared_mutex;
     using boost::unique_lock;
     using boost::shared_lock;
@@ -183,14 +187,17 @@ namespace donkey {
     // synchronizing individual insertion could be too expensive.
     // Synchronization is done at DB level.
     class Index {
+    protected:
+        int default_K;      // hint_K, if input hint_K is <= 0, must replace with this
+        float default_R;    // hint_R, if input hint_R is not normal, must replace with this
     public:
         struct Match {
             uint32_t object;
             uint32_t tag;
             float distance;
         };
-        virtual ~Index () {
-        }
+        Index (Config const &config);
+        virtual ~Index () = default;
         virtual void search (Feature const &query, SearchRequest const &params, std::vector<Match> *) const = 0;
         virtual void insert (uint32_t object, uint32_t tag, Feature const *feature) = 0;
         virtual void clear () = 0;
@@ -245,6 +252,24 @@ namespace donkey {
 #include "plugin/config.h"
 
 namespace donkey {
+
+    static inline float default_R () {
+        if (Matcher::POLARITY >= 0) {
+            return -numeric_limits<float>::max();
+        }
+        else {
+            return numeric_limits<float>::max();
+        }
+    }
+
+    static inline float default_hint_R () {
+        if (FeatureSimilarity::POLARITY > 0) {
+            return -numeric_limits<float>::max();
+        }
+        else {
+            return numeric_limits<float>::max();
+        }
+    }
 
     // append & sync are protected.
     class Journal {
@@ -363,11 +388,19 @@ namespace donkey {
         Index *index;
         mutable shared_mutex mutex;
         Matcher matcher;
+        SearchRequest defaults;
+        int default_K;
+        float default_R;
     public:
         DB (Config const &config) 
             : index(nullptr),
-            matcher(config)
+            matcher(config),
+            default_K(config.get<int>("donkey.defaults.K", 1)),
+            default_R(config.get<float>("donkey.defaults.R", donkey::default_R()))
         {
+            if (default_K <= 0) throw ConfigError("invalid defaults.K");
+            if (!isnormal(default_R)) throw ConfigError("invalid defaults.R");
+
             string algo = config.get<string>("donkey.index.algorithm", "lsh");
             if (algo == "lsh") {
                 index = create_lsh_index(config);
@@ -418,7 +451,17 @@ namespace donkey {
             {
                 Timer timer(&response->rank_time);
                 response->hits.clear();
-                float R = params.R * Matcher::POLARITY;
+                float R = params.R; // * Matcher::POLARITY;
+                if (!std::isnormal(R)) {
+                    R = default_R;
+                }
+                R *= Matcher::POLARITY;
+
+                int K = params.K;
+                if (K <= 0) {
+                    K = default_K;
+                }
+
                 for (auto &pair: candidates) {
                     unsigned id = pair.first;
                     Candidate &cand = pair.second;
@@ -442,8 +485,8 @@ namespace donkey {
                          response->hits.end(),
                          [](Hit const &h1, Hit const &h2) { return h1.score > h2.score;});
                 }
-                if (response->hits.size() > params.K) {
-                    response->hits.resize(params.K);
+                if (response->hits.size() > K) {
+                    response->hits.resize(K);
                 }
             }
         }

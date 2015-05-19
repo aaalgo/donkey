@@ -39,6 +39,12 @@ namespace donkey {
             }
 
             static float dist (RECORD_TYPE const &r, QUERY_TYPE const &q) {
+                if (FeatureSimilarity::POLARITY >= 0) {
+                    return -FeatureSimilarity::apply(*r.feature, q);
+                }
+                else {
+                    return FeatureSimilarity::apply(*r.feature, q);
+                }
             }
         };
 
@@ -59,7 +65,7 @@ namespace donkey {
         }
 
     public:
-        LSHIndex (Config const &config_): config(config_), indexed_size(0), lsh_index(nullptr) {
+        LSHIndex (Config const &config_): Index(config), config(config_), indexed_size(0), lsh_index(nullptr) {
             create_index();
         }
 
@@ -72,6 +78,13 @@ namespace donkey {
         virtual void search (Feature const &query, SearchRequest const &sp, std::vector<Match> *matches) const {
             matches->clear();
             if (lsh_index) {
+                int K = sp.hint_K;
+                if (K <= 0) K = default_K;
+                float R = sp.hint_R;
+                if (!isnormal(R)) R = default_R;
+                if (FeatureSimilarity::POLARITY >= 0) {
+                    R *= -1;
+                }
                 vector<std::pair<Key, float>> m;
                 lsh_index->search(query, sp.hint_R, &m);
                 //TODO: use sp.hint_K, too
@@ -82,6 +95,19 @@ namespace donkey {
                     to.object = from.first.object;
                     to.tag = from.first.tag;
                     to.distance = from.second;
+                }
+                if (matches->size() > K) {
+                    if (Matcher::POLARITY >= 0) {
+                        sort(matches->begin(),
+                             matches->end(),
+                             [](Match const &h1, Match const &h2) { return h1.distance > h2.distance;});
+                    }
+                    else {
+                        sort(matches->begin(),
+                             matches->end(),
+                             [](Match const &h1, Match const &h2) { return h1.distance < h2.distance;});
+                    }
+                    matches->resize(K);
                 }
             }
         }

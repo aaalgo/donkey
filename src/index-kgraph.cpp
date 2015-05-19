@@ -51,7 +51,7 @@ namespace donkey {
         KGraph::SearchParams search_params;
         KGraph *kg_index;
     public:
-        KGraphIndex (Config const &config): indexed_size(0), kg_index(nullptr) {
+        KGraphIndex (Config const &config): Index(config), indexed_size(0), kg_index(nullptr) {
             index_params.iterations = config.get<unsigned>("donkey.kgraph.index.iterations", index_params.iterations);
             index_params.L = config.get<unsigned>("donkey.kgraph.index.L", index_params.L);
             index_params.K = config.get<unsigned>("donkey.kgraph.index.K", index_params.K);
@@ -82,11 +82,18 @@ namespace donkey {
             if (kg_index) {
                 SearchOracle oracle(this, query);
                 KGraph::SearchParams params(search_params);
-                params.K = sp.hint_K;
-                params.epsilon = sp.hint_R;
+                int K = sp.hint_K;
+                float R = sp.hint_R;
+                if (K <= 0) K = default_K;
+                if (!isnormal(R)) R = default_R;
+                if (FeatureSimilarity::POLARITY >= 0) {
+                    R *= -1;
+                }
+                params.K = K;
+                params.epsilon = R;
                 // update search params
-                vector<unsigned> ids(params.K);
-                vector<float> dists(params.K);
+                vector<unsigned> ids(K);
+                vector<float> dists(K);
                 //unsigned L = kg_index->search(oracle, params, &ids[0], &dists[0], nullptr);
                 unsigned L = oracle.search(params.K, params.epsilon, &ids[0], &dists[0]);
                 matches->resize(L);
