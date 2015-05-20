@@ -131,7 +131,7 @@ namespace donkey {
             if (request.content.size()) {
                 throw RequestError("both url and content set");
             }
-            if (test_url) {
+            if (test_url(request.url)) {
                 is_url = true;
                 path = fs::unique_path();
                 string cmd = (boost::format("wget -O '%s' '%s'") % path.native() % request.url).str();

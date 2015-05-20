@@ -13,7 +13,7 @@ namespace donkey {
     };
 
     struct NegativeSimilarity {
-        static constexpr int POLARITY = 1;
+        static constexpr int POLARITY = -1;
     };
 
     template <typename T, unsigned D>

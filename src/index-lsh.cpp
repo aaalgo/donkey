@@ -39,12 +39,7 @@ namespace donkey {
             }
 
             static float dist (RECORD_TYPE const &r, QUERY_TYPE const &q) {
-                if (FeatureSimilarity::POLARITY >= 0) {
-                    return -FeatureSimilarity::apply(*r.feature, q);
-                }
-                else {
-                    return FeatureSimilarity::apply(*r.feature, q);
-                }
+                return FeatureSimilarity::apply(*r.feature, q);
             }
         };
 
@@ -65,7 +60,7 @@ namespace donkey {
         }
 
     public:
-        LSHIndex (Config const &config_): Index(config), config(config_), indexed_size(0), lsh_index(nullptr) {
+        LSHIndex (Config const &config_): Index(config_), config(config_), indexed_size(0), lsh_index(nullptr) {
             create_index();
         }
 
@@ -82,11 +77,8 @@ namespace donkey {
                 if (K <= 0) K = default_K;
                 float R = sp.hint_R;
                 if (!isnormal(R)) R = default_R;
-                if (FeatureSimilarity::POLARITY >= 0) {
-                    R *= -1;
-                }
                 vector<std::pair<Key, float>> m;
-                lsh_index->search(query, sp.hint_R, &m);
+                lsh_index->search(query, R, &m);
                 //TODO: use sp.hint_K, too
                 matches->resize(m.size());
                 for (unsigned i = 0; i < m.size(); ++i) {
@@ -97,7 +89,7 @@ namespace donkey {
                     to.distance = from.second;
                 }
                 if (matches->size() > K) {
-                    if (Matcher::POLARITY >= 0) {
+                    if (FeatureSimilarity::POLARITY >= 0) {
                         sort(matches->begin(),
                              matches->end(),
                              [](Match const &h1, Match const &h2) { return h1.distance > h2.distance;});

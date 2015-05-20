@@ -22,6 +22,30 @@ using namespace apache::thrift::server;
 
 class DonkeyHandler : virtual public api::DonkeyIf {
     Server *server;
+
+    void protect (function<void()> const &callback) {
+        try {
+            callback();
+        }
+        catch (Error const &e) {
+            api::Exception ae;
+            ae.what = e.code();
+            ae.why = e.what();
+            throw ae;
+        }
+        catch (std::exception const &e) {
+            api::Exception ae;
+            ae.what = ErrorCode_Unknown;
+            ae.why = e.what();
+            throw ae;
+        }
+        catch (...) {
+            api::Exception ae;
+            ae.what = ErrorCode_Unknown;
+            throw ae;
+        }
+    }
+
  public:
   DonkeyHandler(Server *s): server(s) {
     // Your initialization goes here
@@ -31,34 +55,37 @@ class DonkeyHandler : virtual public api::DonkeyIf {
   }
 
   void search(api::SearchResponse& response, const api::SearchRequest& request) {
-        SearchRequest req;
-        req.db = request.db;
-        req.raw = request.raw;
-        req.url = request.url;
-        req.content = request.content;
-        req.K = request.__isset.K ? request.K : -1;
-        req.R = request.__isset.R ? request.R : NAN;
-        req.hint_K = request.__isset.hint_K ? request.hint_K: -1;
-        req.hint_R = request.__isset.hint_R ? request.hint_R: NAN;
+        protect([this, &response, request](){
+            SearchRequest req;
+            req.db = request.db;
+            req.raw = request.raw;
+            req.url = request.url;
+            req.content = request.content;
+            req.K = request.__isset.K ? request.K : -1;
+            req.R = request.__isset.R ? request.R : NAN;
+            req.hint_K = request.__isset.hint_K ? request.hint_K: -1;
+            req.hint_R = request.__isset.hint_R ? request.hint_R: NAN;
 
-        SearchResponse resp;
+            SearchResponse resp;
 
-        server->search(req, &resp);
-        response.time=resp.time;
-        response.load_time=resp.load_time;
-        response.filter_time=resp.filter_time;
-        response.rank_time=resp.rank_time;
-        response.hits.clear();
-        for (auto const &hit: resp.hits) {
-            api::Hit h;
-            h.key = hit.key;
-            h.meta = hit.meta;
-            h.score = hit.score;
-            response.hits.push_back(h);
-        }
+            server->search(req, &resp);
+            response.time=resp.time;
+            response.load_time=resp.load_time;
+            response.filter_time=resp.filter_time;
+            response.rank_time=resp.rank_time;
+            response.hits.clear();
+            for (auto const &hit: resp.hits) {
+                api::Hit h;
+                h.key = hit.key;
+                h.meta = hit.meta;
+                h.score = hit.score;
+                response.hits.push_back(h);
+            }
+        });
   }
 
   void insert(api::InsertResponse& response, const api::InsertRequest& request) {
+      protect([this, &response, request](){
         InsertRequest req;
         req.db = request.db;
         req.key = request.key;
@@ -73,9 +100,11 @@ class DonkeyHandler : virtual public api::DonkeyIf {
         response.load_time=resp.load_time;
         response.journal_time=resp.journal_time;
         response.index_time=resp.index_time;
+     });
   }
 
   void misc(api::MiscResponse& response, const api::MiscRequest& request) {
+      protect([this, &response, request](){
         MiscRequest req;
         MiscResponse resp;
         req.method = request.method;
@@ -83,6 +112,7 @@ class DonkeyHandler : virtual public api::DonkeyIf {
         server->misc(req, &resp);
         response.code = resp.code;
         response.text = resp.text;
+     });
   }
 };
 
@@ -156,14 +186,10 @@ public:
         req.raw = request.raw;
         req.url = request.url;
         req.content = request.content;
-        req.K = request.K;
-        req.__isset.K = true;
-        req.R = request.R;
-        req.__isset.R = true;
-        req.hint_K = request.hint_K;
-        req.__isset.hint_K = true;
-        req.hint_R = request.hint_R;
-        req.__isset.hint_R = true;
+        req.__set_K(request.K);
+        req.__set_R(request.R);
+        req.__set_hint_K(request.hint_K);
+        req.__set_hint_R(request.hint_R);
         client.search(resp, req);
         response->time = resp.time;
         response->load_time = resp.load_time;

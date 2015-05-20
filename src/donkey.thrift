@@ -59,10 +59,15 @@ struct MiscResponse {
     2:required string text;
 }
 
+exception Exception {
+      1: i32 what;
+      2: string why;
+}
+
 service Donkey {
     PingResponse ping (1:required PingRequest request);
-    SearchResponse search (1:required SearchRequest request);
-    InsertResponse insert (1:required InsertRequest request);
-    MiscResponse misc (1:required MiscRequest request);
+    SearchResponse search (1:required SearchRequest request) throws (1:Exception e);
+    InsertResponse insert (1:required InsertRequest request) throws (1:Exception e);
+    MiscResponse misc (1:required MiscRequest request) throws (1:Exception e);
 }
 

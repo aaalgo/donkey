@@ -89,7 +89,7 @@ namespace donkey {
     public:
         explicit Error (string const &what): runtime_error(what) {}
         explicit Error (char const *what): runtime_error(what) {}
-        virtual int64_t code () const = 0;
+        virtual int32_t code () const = 0;
     };
 
 #define DEFINE_ERROR(name, cc) \
@@ -97,7 +97,7 @@ namespace donkey {
     public: \
         explicit name (string const &what): Error(what) {} \
         explicit name (char const *what): Error(what) {} \
-        virtual int64_t code () const { return cc;} \
+        virtual int32_t code () const { return cc;} \
     }
 
     static constexpr int64_t ErrorCode_Success = 0;
@@ -338,7 +338,7 @@ namespace donkey {
             while (false);
 
             {
-                int fd = ::open(path.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR);
+                int fd = ::open(path.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
                 if (fd < 0) {
                     LOG(fatal) << "Cannot open journal file.";
                     BOOST_VERIFY(0);
@@ -451,11 +451,10 @@ namespace donkey {
             {
                 Timer timer(&response->rank_time);
                 response->hits.clear();
-                float R = params.R; // * Matcher::POLARITY;
+                float R = params.R;
                 if (!std::isnormal(R)) {
                     R = default_R;
                 }
-                R *= Matcher::POLARITY;
 
                 int K = params.K;
                 if (K <= 0) {
@@ -466,8 +465,15 @@ namespace donkey {
                     unsigned id = pair.first;
                     Candidate &cand = pair.second;
                     cand.object = &records[id]->object;
-                    float score = matcher.apply(object, cand) * Matcher::POLARITY;
-                    if (score  >= R) {
+                    float score = matcher.apply(object, cand);
+                    bool good = false;
+                    if (Matcher::POLARITY >= 0) {
+                        good = score >= R;
+                    }
+                    else {
+                        good = score <= R;
+                    }
+                    if (good) {
                         Hit hit;
                         hit.key = records[id]->key;
                         hit.meta = records[id]->meta;

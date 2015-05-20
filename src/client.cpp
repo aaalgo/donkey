@@ -23,12 +23,12 @@ int main (int argc, char *argv[]) {
         ("override,D", po::value(&overrides), "override configuration.")
         ("method", po::value(&method)->default_value("ping"), "")
         ("db", po::value(&db)->default_value(0), "")
-        ("raw", "")
+        ("feature", "")
         ("content", "")
-        (",K", po::value(&search.K)->default_value(1), "")
-        (",R", po::value(&search.R)->default_value(0), "")
-        ("hint_K", po::value(&search.hint_K)->default_value(1), "")
-        ("hint_R", po::value(&search.hint_R)->default_value(0), "")
+        (",K", po::value(&search.K)->default_value(-1), "")
+        (",R", po::value(&search.R)->default_value(NAN), "")
+        ("hint_K", po::value(&search.hint_K)->default_value(-1), "")
+        ("hint_R", po::value(&search.hint_R)->default_value(NAN), "")
         ("verbose,v", "")
         ;
 
@@ -48,7 +48,7 @@ int main (int argc, char *argv[]) {
         return 0;
     }
 
-    raw = vm.count("raw");
+    raw = !vm.count("feature");
     content = vm.count("content");
     verbose = vm.count("verbose");
 
@@ -61,22 +61,32 @@ int main (int argc, char *argv[]) {
         client->ping();
     }
     else if (method == "insert") {
-        string key;
-        string url;
-        while (cin >> key >> url) {
+        string line;
+        while (getline(cin, line)) {
+            size_t off = line.find('\t');
+            if (off == string::npos || (off + 1) >= line.size()) {
+                cerr << "Bad line: " << line << endl;
+                continue;
+            }
+            size_t off2 = line.find('\t', off+1);
+            if (off2 == string::npos) {
+                off2 = line.size();
+            }
             InsertRequest req;
             InsertResponse resp;
             req.db = db;
             req.raw = raw;
-            req.key = key;
-            if (content) {
-                ReadFile(url, &req.content);
+            req.key = line.substr(0, off);
+            req.url = line.substr(off+1, off2 - off);
+            if (off2 + 1 < line.size()) {
+                req.meta = line.substr(off2 + 1);
             }
-            else {
-                req.url = url;
+            if (content) {
+                ReadFile(req.url, &req.content);
+                req.url.clear();
             }
             client->insert(req, &resp);
-            cout << key;
+            cout << req.key;
             if (verbose) {
                 cout << '\t' << resp.time << '\t' << resp.load_time << '\t' << resp.journal_time << '\t' << resp.index_time << endl;
             }
@@ -102,7 +112,7 @@ int main (int argc, char *argv[]) {
                 cout << key << ": " << resp.time << '\t' << resp.load_time << '\t' << resp.filter_time << '\t' << resp.rank_time << endl;
             }
             for (auto const &h: resp.hits) {
-                cout << key << " => " << h.key << '\t' << h.score << endl;
+                cout << key << " => " << h.key << '\t' << h.score << '\t' << h.meta << endl;
             }
             if (resp.hits.empty()) {
                 cout << key << endl;
