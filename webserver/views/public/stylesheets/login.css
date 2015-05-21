@@ -1,0 +1,11 @@
+#main_content {
+    margin:auto;
+    margin-top:15%;
+}
+.login>input{
+    display: block;
+    font-size:2em;
+    margin:auto;
+    margin-top:20px;
+    margin-bottom:20px;
+}

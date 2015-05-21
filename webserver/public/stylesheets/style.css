@@ -1,0 +1,70 @@
+body {margin: 0;}
+nav {
+    background: #6633cc;
+    padding-left:15%;
+}
+nav>a {
+    font: 1.3em Tahoma, Geneva, sans-serif;
+    display: inline-block;
+    padding:10px;
+    padding-left:20px;
+    padding-right:20px;
+    text-decoration:none;
+    color: #B0B0B0;
+}
+nav>a:hover{
+    color: #FFFFFF;
+}
+nav>a.active{
+    color: #FFFFFF;
+    font-weight:bold;
+    background:#5522bb;
+}
+.main_content {
+    margin: 30px;
+    margin-left:15%;
+    width:63%;
+    font: 1.3em Tahoma, Geneva, sans-serif;
+}
+#input_title {
+    outline:none;
+    display:inline-block;
+    width:80%;
+    padding: 8px;
+    resize:none;
+    border-width:0px;
+    border-bottom-width:2px;
+    border-bottom-style:inset;
+    border-color:#DDDDDD;
+    font-size: 1.8em;
+}
+#input_content {
+    outline:none;
+    display:block;
+    width:100%;
+    padding: 8px;
+    resize:none;
+    border-width:0px;
+    border-bottom-width:2px;
+    border-bottom-style:inset;
+    border-color:#DDDDDD;
+    font-size:1.2em;
+}
+input[type="submit"].diary {
+    background:#3366ff;
+    border-color:#3366ff;
+    border-radius:12px;
+    display:inline-block;
+    height:50px;
+    width:110px;
+    float:right;
+    margin-top:9px;
+    outline:none;
+    padding: 3px;
+    font-size: 1.2em;
+}
+
+input[type="submit"].diary:hover {
+    background:#2255aa;
+    border-color:#2255aa;
+}
