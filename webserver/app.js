@@ -5,9 +5,7 @@ var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 var config      =require('./config.js')
 var app = express();
-var authen      = require('./share/authen');
-var share = require('./share/share');
-var diary = require('./diary/diaryApp');
+var mainRouter = require('./router');
 
 
 // view engine setup
@@ -23,10 +21,8 @@ app.use(bodyParser.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.use(authen);//get req.authen
 
-app.use('/diary', diary);
-app.use('/', share);
+app.use('/', mainRouter);
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
@@ -59,6 +55,4 @@ app.use(function(err, req, res, next) {
     });
 });
 
-
-console.log('app been setup');
 module.exports = app;

@@ -1,65 +1,37 @@
 var thrift = require("thrift");
-var Calculator = require("./gen-nodejs/Calculator");
-var ttypes = require("./gen-nodejs/tutorial_types");
-var SharedStruct = require("./gen-nodejs/shared_types").SharedStruct;
+var Donkey = require('./gen-nodejs/Donkey');
+var ttypes = require('./gen-nodejs/donkey_types');
 
-var data = {};
-
-var server = thrift.createServer(Calculator, {
-  ping: function(result) {
-    console.log("ping()");
-    result(null);
-  },
-
-  add: function(n1, n2, result) {
-    console.log("add(", n1, ",", n2, ")");
-    result(null, n1 + n2);
-  },
-
-  calculate: function(logid, work, result) {
-    console.log("calculate(", logid, ",", work, ")");
-
-    var val = 0;
-    if (work.op == ttypes.Operation.ADD) {
-      val = work.num1 + work.num2;
-    } else if (work.op === ttypes.Operation.SUBTRACT) {
-      val = work.num1 - work.num2;
-    } else if (work.op === ttypes.Operation.MULTIPLY) {
-      val = work.num1 * work.num2;
-    } else if (work.op === ttypes.Operation.DIVIDE) {
-      if (work.num2 === 0) {
-        var x = new ttypes.InvalidOperation();
-        x.what = work.op;
-        x.why = 'Cannot divide by 0';
-        result(x);
-        return;
-      }
-      val = work.num1 / work.num2;
-    } else {
-      var x = new ttypes.InvalidOperation();
-      x.what = work.op;
-      x.why = 'Invalid operation';
-      result(x);
-      return;
-    }
-
-    var entry = new SharedStruct();
-    entry.key = logid;
-    entry.value = ""+val;
-    data[logid] = entry;
-
-    result(null, val);
-  },
-
-  getStruct: function(key, result) {
-    console.log("getStruct(", key, ")");
-    result(null, data[key]);
-  },
-
-  zip: function() {
-    console.log("zip()");
-    result(null);
-  }
+var server = thrift.createServer(Donkey, {
+    search: 
+    function(q, result) {
+console.log("@thrift server search: "+JSON.stringify(q));
+        var now=new Date();
+        var time=now.toTimeString()+" ";
+        var data = [];
+        if(q.url=="error"){
+		
+            var ex=new ttypes.Exception();
+                ex.what=0;
+    ex.why="intended error";
+            result(ex);
+        }else{
+            for(i=0;i<500;i++){
+		var hit=new ttypes.Hit();
+		hit.key=time+i;
+		hit.meta="meta";
+		hit.score=i;
+                data.push(hit); 
+            }
+		var res=new ttypes.SearchResponse();
+		res.time=0.01;
+		res.load_time=0.02;
+		res.filter_time=0.03;
+		res.rank_time=0.04;
+                res.hits=data;           
+            result(null,res);
+        }
+    },
 
 },{});
 
