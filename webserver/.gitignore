@@ -1,0 +1,6 @@
+log/
+*.log
+node_modules/
+*.swp
+test.js
+gen-nodejs/
