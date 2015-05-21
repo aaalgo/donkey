@@ -1,11 +1,15 @@
 var thrift = require('thrift');
+var ThriftTransports = require('./node_modules/thrift/lib/thrift/transport');
+var ThriftProtocols = require('./node_modules/thrift/lib/thrift/protocol');
 var config = require('./config');
-var thrift = require('thrift');
 var Donkey = require('./gen-nodejs/Donkey');
 var ttypes = require('./gen-nodejs/donkey_types');
 var LRU = require("lru-cache")
 var searchCache = LRU(config.apiOptions.searchCacheSize); // sets just the max size
 var mod={};
+
+transport = ThriftTransports.TBufferedTransport()
+protocol = ThriftProtocols.TBinaryProtocol()
 
 searchCache.newId=function(){
     this.cur=this.cur+1||1;
@@ -15,7 +19,10 @@ searchCache.newId=function(){
     return this.cur;
 }
 
-var connection = thrift.createConnection("localhost", config.thriftPort);
+var connection = thrift.createConnection("localhost", config.thriftPort, {
+  transport : transport,
+  protocol : protocol
+});
 
 connection.on('error', function(err) {
 	console.log(err.stack);
@@ -24,6 +31,10 @@ connection.on('error', function(err) {
 // Create a Calculator client with the connection
 var client = thrift.createClient(Donkey, connection);
 
+var ping=new ttypes.PingRequest();
+client.ping(ping,function(err,res){
+	console.log("ping()");
+})
 
 function search(req,callback,fetchContent){
     var id=req.query.query_id;
@@ -35,8 +46,8 @@ function search(req,callback,fetchContent){
 	q.db=0;
 	q.raw=true;
 	q.type="";
-	q.url=null;
-	q.content=null;
+	q.url="";
+	q.content="";
 
         fetchContent(q);
 	console.log("@client : "+JSON.stringify(q));
@@ -45,6 +56,10 @@ function search(req,callback,fetchContent){
                 var id=searchCache.newId();
                 searchCache.set(id,response);
                 info.id=id;
+		for(i in response.hits){
+			response.hits[i].meta=JSON.parse(response.hits[i].meta);
+			response.hits[i].meta.thumb=config.rootPath+response.hits[i].meta.thumb;
+		}
         	paginate(req,response,info,searchRespond(callback));
             }else{
 callback(err);

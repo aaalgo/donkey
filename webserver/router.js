@@ -17,6 +17,9 @@ console.log("url request"+JSON.stringify(req.query));
 function sendJson(data){res.json(data);}
     donkey.search(req,sendJson,function(q){
         q.url=req.query.url;
+	if(q.url==null){
+	    res.json({err:"url cannot be empty"});	
+	}
     })
 });
 router.get('/', function(req, res) {

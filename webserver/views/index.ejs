@@ -1,16 +1,54 @@
 <!DOCTYPE html>
 <html>
-<body>
 
-<form action="qbic.php" method=POST enctype="multipart/form-data">
+
+
+<body>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+<script>
+var query={}
+var totalPage;
+function move(n){
+	search(query.page+n);
+}
+
+function search(q){
+if(q==null)query={url:"aa"};
+else{
+query.page=q;
+}
+$.get("search/url",query,function(data){
+	query.query_id=data.query_id;
+	query.page=data.pageNum;
+	totalPage=data.numOfPages;
+	var list=data.data.hits;
+	var text="";
+	var prev='<button type="button" onclick="move(-1)">prev</td>'
+	var next='<button type="button" onclick="move(1)">next</td>'
+	text+="<div>"
+if(query.page>=1)text+=prev;
+if(query.page<totalPage-1)text+=next;
+	text+="</div>"
+	for(i in list){
+		text+='<p>' +  list[i].meta.title +'</p>';
+		text+='<img src="'+list[i].meta.thumb+'"></img><br>';
+	}
+	$("#imgs").html(text);
+})
+}
+
+</script>
+
+<form action="javascript:void(0)" method=POST enctype="multipart/form-data">
     <table><tr>
      <td>Search URL:</td>
      <td><input name="query_url"></input></td>
      <td>&nbsp;&nbsp;or upload File:</td>
      <td><input type="file" name="query_file" /></td>
-     <td><input type="submit" value="Submit"></td>
+     <td><button type="button" onclick="search()">Submit</td>
     </table></tr>
 </form>
+<div id="imgs">
+</div>
 <br/>
-Query by file:<h2>Uploaded File Info:</h2><ul><li>Sent file:</li><li>Sent file:</li><li>Sent file:</li></ul></body>
 </html>

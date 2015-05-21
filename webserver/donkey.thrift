@@ -65,9 +65,9 @@ exception Exception {
 }
 
 service Donkey {
-//    PingResponse ping (1:required PingRequest request);
+    PingResponse ping (1:required PingRequest request);
     SearchResponse search (1:required SearchRequest request) throws (1:Exception e);
-//    InsertResponse insert (1:required InsertRequest request) throws (1:Exception e);
-//    MiscResponse misc (1:required MiscRequest request) throws (1:Exception e);
+    InsertResponse insert (1:required InsertRequest request) throws (1:Exception e);
+    MiscResponse misc (1:required MiscRequest request) throws (1:Exception e);
 }
 
