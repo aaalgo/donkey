@@ -3,11 +3,12 @@ var fs= require('fs')
 var config={};
 
 
-config.port=8081;
 config.rootDir=__dirname;
 config.viewsDir=path.join(config.rootDir,'views');
 
-config.thriftPort=9090;
+config.port=38081;
+config.thriftPort=38082;
+config.rootPath="/qbic/";
 
 config.apiOptions={
     searchCacheSize:1000,

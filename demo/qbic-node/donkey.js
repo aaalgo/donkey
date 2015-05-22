@@ -48,8 +48,9 @@ function search(req,callback,fetchContent){
 	q.type="";
 	q.url="";
 	q.content="";
-
-        fetchContent(q);
+	
+        var fet=fetchContent(q);
+	if(fet)return 1;
 	console.log("@client : "+JSON.stringify(q));
         client.search(q,function(err,response){
             if(err==null){
