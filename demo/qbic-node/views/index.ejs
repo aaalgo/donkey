@@ -1,92 +1,136 @@
 <!DOCTYPE html>
 <html>
+	<body>
+		<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+		<script>
+			function DonkeyQuery(){
+				this.params={};
+			}
+			DonkeyQuery.prototype={
+				searchUrl:function(url,callback){
+					this.type="url";
+					var querySelf=this;
+					if(isNaN(url)){
+						this.params={url:url};
+					}
+					else{
+						querySelf.params.page=url;
+					}
+					$.get("search/url",this.params,function(data){
+						if(data.error==null){
+							querySelf.params.query_id=data.query_id;
+							querySelf.params.page=data.pageNum;
+							querySelf.totalPages=data.numOfPages;
+						}
+							callback(data);
+					});
+
+				},
+				gotoPage:function(n,callback){
+					if(this.type=="url")
+					this.searchUrl(n,callback);
+					else this.searchFile(this.file,callback,n);
+				},
+				searchFile:function searchFile(q,callback,n){
+					var querySelf=this;
+					var pageInfo=function(data){
+						if(data.error==null){
+							querySelf.params.query_id=data.query_id;
+							querySelf.params.page=data.pageNum;
+							querySelf.totalPages=data.numOfPages;
+						}
+							callback(data);
+					}
+					this.type="file";
+					this.file=q;
+					if(n==null){
+						this.params={};
+						var form=new FormData();
+						form.append("file0",querySelf.file);
+						$.ajax({
+							url:"search/file",
+							success:pageInfo,
+							type:"POST",
+							data:form,
+							contentType:false,
+							processData: false
+						})
+					}
+					else{
+						this.params.page=n;
+						$.ajax({
+							url:"search/file",
+							success:function(data){
+								if(data.error!=null){
+									var form=new FormData();
+									form.append("file0",querySelf.file);
+									form.append("page",querySelf.params.page)
+									$.ajax({
+										url:"search/file",
+										success:pageInfo,
+										type:"POST",
+										data:form,
+										contentType:false,
+										processData: false
+								})}
+								else pageInfo(data);
+							},
+							type:"GET",
+							data:this.params,
+						});
+					}
+				}
+			}
+		qry=new DonkeyQuery();
+		function next(){
+			qry.gotoPage(qry.params.page+1,render);
+		}
+		function prev(){
+			qry.gotoPage(qry.params.page-1,render);
+		}
+
+		function search(){
+			qry.searchUrl($('#url').val(),render);
+		}
+		function searchFile(){
+			qry.searchFile($('#path')[0].files[0],render);
+		}
 
 
+		var render=function(data,query){
+			if(data.error!=null){
+				$("#imgs").html(data.error);
+				return;
+			}
+			var list=data.data.hits;
+			var text="";
+			var prev='<button type="button" onclick="prev()">prev</td>'
+			var next='<button type="button" onclick="next()">next</td>'
+			text+="<div>"
+				if(data.pageNum>=1)text+=prev;
+				if(data.pageNum<data.numOfPages-1)text+=next;
+				text+="</div>"
+			for(i in list){
+				text+='<p>' +  list[i].meta.title +'</p>';
+				text+='<img src="'+list[i].meta.thumb+'"></img><br>';
+			}
+			$("#imgs").html(text);
+		}
+	</script>
 
-<body>
-<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
-<script>
-var query={}
-var totalPage;
-var type="url";
-function move(n){
-if(type=="url")
-	search(query.page+n);
-	else searchFile(query.page+n);
-}
-
-function search(q){
-type="url";
-if(q==null){
-query={};
-query.url=$('#url').val();
-}
-else{
-query.page=q;
-}
-$.get("search/url",query,callback
-
-)
-}
-
-function searchFile(q){
-type="file";
-if(q==null){
-query={};
-data=new FormData();
-data.append("file0",$('#path')[0].files[0]);
-$.ajax({
-url:"search/file",
-success:callback,
-type:"POST",
-data:data,
-contentType:false,
-processData: false
-})
-}
-else{
-query.page=q;
-$.ajax({
-url:"search/file",
-success:callback,
-type:"GET",
-data:query,
-})
-}
-}
-
-var callback=function(data){
-	query.query_id=data.query_id;
-	query.page=data.pageNum;
-	totalPage=data.numOfPages;
-	var list=data.data.hits;
-	var text="";
-	var prev='<button type="button" onclick="move(-1)">prev</td>'
-	var next='<button type="button" onclick="move(1)">next</td>'
-	text+="<div>"
-console.log("page"+query.page);
-if(query.page>=1)text+=prev;
-if(query.page<totalPage-1)text+=next;
-	text+="</div>"
-	for(i in list){
-		text+='<p>' +  list[i].meta.title +'</p>';
-		text+='<img src="'+list[i].meta.thumb+'"></img><br>';
-	}
-	$("#imgs").html(text);
-}
-</script>
-
-<form action="javascript:void(0)" method=POST enctype="multipart/form-data">
-    <table><tr>
-     <td>Search URL:</td>
-     <td><input name="query_url" id="url"></input></td>
-     <td><button type="button" onclick="search()">Submit</td>
-     <td>&nbsp;&nbsp;or upload File:</td>
-     <td><input type="file" name="file0" id="path"/></td>
-     <td><button type="button" onclick="searchFile()">_Submit</td>
-    </table></tr>
-</form>
-<div id="imgs">
-</div>
-<br/>
+	<form action="javascript:void(0)" method=POST enctype="multipart/form-data">
+		<table>
+			<tr>
+				<td>Search URL:</td>
+				<td><input name="query_url" id="url"></input></td>
+				<td><button type="button" onclick="search()">Submit</button></td>
+				<td>&nbsp;&nbsp;or upload File:</td>
+				<td><input type="file" name="file0" id="path"/></td>
+				<td><button type="button" onclick="searchFile()">_Submit</button></td>
+			</tr>
+		</table>
+	</form>
+	<div id="imgs">
+	</div>
+</body>
 </html>
