@@ -3,6 +3,7 @@
 
 #include <array>
 #include <algorithm>
+#include <iostream>
 #include <boost/type_traits.hpp>
 // common feature and objects 
 
@@ -22,11 +23,11 @@ namespace donkey {
         static unsigned constexpr DIM = D;
         std::array<T, D> data;
 
-        void read (istream &is) {
+        void read (std::istream &is) {
             is.read(reinterpret_cast<char *>(&data[0]), sizeof(value_type) * DIM);
         }
 
-        void write (ostream &os) const {
+        void write (std::ostream &os) const {
             os.write(reinterpret_cast<char const *>(&data[0]), sizeof(value_type) * DIM);
         }
     };
@@ -83,11 +84,11 @@ namespace donkey {
             callback(0, &feature);
         }
 
-        void read (istream &is) {
+        void read (std::istream &is) {
             feature.read(is);
         }
 
-        void write (ostream &os) const {
+        void write (std::ostream &os) const {
             feature.write(os);
         }
 
@@ -113,7 +114,7 @@ namespace donkey {
             }
         }
 
-        void read (istream &is) {
+        void read (std::istream &is) {
             uint16_t sz;
             is.read(reinterpret_cast<char *>(&sz), sizeof(sz));
             BOOST_VERIFY(sz <= MAX_FEATURES);
@@ -126,7 +127,7 @@ namespace donkey {
             }
         }
 
-        void write (ostream &os) const {
+        void write (std::ostream &os) const {
             uint16_t sz = parts.size();
             os.write(reinterpret_cast<char const *>(&sz), sizeof(sz));
             for (auto const &part: parts) {
