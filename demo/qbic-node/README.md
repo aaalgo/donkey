@@ -1,14 +1,21 @@
+A web demo of donkey.
+##requirement
++ npm
++ thrift
+
 ##install
 ./configure.sh
 
 ##run
-node thriftServer.js 
-will run thrift server for test
++ node(nodejs) thriftServer.js &
 
-node server.js
-will start the web server
+	will run thrift server for test
+
++ ./run.sh
+
+	will start the web server
 
 ##url
-1. GET host:8081/ 		main page
-2. GET host:8081/search/local	rest api for searching content
-3. GET host:8081/search/url	rest api for searching url
+1. GET host:port/ 		main page
+2. POST host:port/search/file	ajax api for searching content
+3. GET host:port/search/url	ajax api for searching url

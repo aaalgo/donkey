@@ -65,8 +65,8 @@ function search(req,callback,fetchContent){
 				}else{
 				callback(err);
 
-				});
-			}
+				}});
+			
 			});
     }else{
 	    paginate(req,result,info,searchRespond(callback));
