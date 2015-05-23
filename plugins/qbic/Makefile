@@ -1,4 +1,4 @@
-LIB= -lboost_system  -lboost_filesystem -lopencv_core -lopencv_imgproc -lopencv_highgui  
+LIB= -lboost_system  -lboost_filesystem -lopencv_imgproc -lopencv_highgui -lopencv_core
 INC= -I../../src/
 STD= -std=c++11
 CC = g++ $(STD)

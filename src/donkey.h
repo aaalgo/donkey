@@ -22,7 +22,6 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/timer/timer.hpp>
 #include <boost/assert.hpp>
-//#include <kgraph.h>
 #include "fnhack.h"
 
 // common stuff
@@ -249,7 +248,7 @@ namespace donkey {
 }
 
 // data-type-specific configuration
-#include "../plugins/qbic/config.h"
+#include "plugin/config.h"
 
 namespace donkey {
 
