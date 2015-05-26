@@ -4,11 +4,20 @@ echo heehaw
 
 
 PLUGIN=$1
+PROTOCOL=$2
 
 if [ -z "$PLUGIN" ]
 then
-	echo please provide a plugin name
+	echo usage:
+	echo './heehaw <plugin> [protocol]'
+	echo 'plugin: qbic'
+	echo 'protocol: thrift (default), grpc'
 	exit 1
+fi
+
+if [ -z "$PROTOCOL" ]
+then
+	PROTOCOL=thrift
 fi
 
 PLUGIN_DIR=plugins/$PLUGIN

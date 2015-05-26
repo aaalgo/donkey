@@ -1,11 +1,18 @@
 Building instruction:
 
-The code builds under Ubuntu 14.04 with 4.8 with the following libraries installed:
+The code builds under Ubuntu 14.04 with g++ 4.8 and with the following libraries installed:
 
 - boost (libboost1.55-dev, but 1.54 should also do).
-- Protobuf and gRPC, installed from source.
-- Thrift.
-- KGraph (Download from www.kgraph.org, manually put kgraph.h and libkgraph.so in system directories.)
+- Thrift. 
+- ProtoBuf + gRPC (optional).
+- KGraph (Download from www.kgraph.org, manually put kgraph.h and libkgraph.so in system directories.) The dependency will be removed later.
+- OpenCV.
+- FLANN (not needed now, but we'll soon integrate it.)
 
 
-- Wei Dong
+After the source is cloned, run under project root
+
+./heehaw qbic
+
+The source tree will be configured to build with the qbic plugin and thrift.  After that, incremental build can be done by running "make" under the src directory.
+
