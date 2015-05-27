@@ -9,7 +9,7 @@ The code builds under Ubuntu 14.04 with g++ 4.8 and with the following libraries
 The above three can be installed with the following command:
   apt-get install libboost1.55-dev libopencv-dev libflann-dev
 
-- Thrift (depends on package libevent-dev).
+- Thrift (depends on package libevent-dev and libssl-dev).
 - ProtoBuf + gRPC (optional).
 - KGraph (Download from www.kgraph.org, manually put kgraph.h and libkgraph.so in system directories.) The dependency will be removed later.
 
