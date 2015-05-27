@@ -2,7 +2,7 @@ Building instruction:
 
 The code builds under Ubuntu 14.04 with g++ 4.8 and with the following libraries installed:
 
-- boost (libboost1.55-dev, but 1.54 should also do).
+- boost (libboost1.55-all, but 1.54 should also do).
 - OpenCV.
 - FLANN (not needed now, but we'll soon integrate it.)
 
