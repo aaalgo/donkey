@@ -130,6 +130,7 @@ namespace donkey {
     struct Hit {
         string key;
         string meta;
+        string details;
         float score;
     };
 
