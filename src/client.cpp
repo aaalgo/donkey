@@ -8,6 +8,7 @@ int main (int argc, char *argv[]) {
     string config_path;
     vector<string> overrides;
     string method;
+    string type;
     uint32_t db;
     bool raw;
     bool content;
@@ -25,6 +26,7 @@ int main (int argc, char *argv[]) {
         ("db", po::value(&db)->default_value(0), "")
         ("feature", "")
         ("content", "")
+        ("type", po::value(&type), "")
         (",K", po::value(&search.K)->default_value(-1), "")
         (",R", po::value(&search.R)->default_value(NAN), "")
         ("hint_K", po::value(&search.hint_K)->default_value(-1), "")
@@ -77,6 +79,7 @@ int main (int argc, char *argv[]) {
             req.db = db;
             req.raw = raw;
             req.key = line.substr(0, off);
+            req.type = type;
             req.url = line.substr(off+1, off2 - off);
             if (off2 + 1 < line.size()) {
                 req.meta = line.substr(off2 + 1);
@@ -101,6 +104,7 @@ int main (int argc, char *argv[]) {
             SearchResponse resp;
             req.db = db;
             req.raw = raw;
+            req.type = type;
             if (content) {
                 ReadFile(url, &req.content);
             }

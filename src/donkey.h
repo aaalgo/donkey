@@ -239,12 +239,12 @@ namespace donkey {
     class ExtractorBase {
     public:
         virtual ~ExtractorBase () {}
-        virtual void extract_path (string const &path, Object *object) const {
+        virtual void extract_path (string const &path, string const &type, Object *object) const {
             string content;
             ReadFile(path, &content);
-            extract(content, object);
+            extract(content, type, object);
         }
-        virtual void extract (string const &content, Object *object) const; 
+        virtual void extract (string const &content, string const &type, Object *object) const; 
     };
 }
 
