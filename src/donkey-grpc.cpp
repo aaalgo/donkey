@@ -68,6 +68,7 @@ public:
             auto ptr = response->add_hits();
             ptr->set_key(hit.key);
             ptr->set_meta(hit.meta);
+            ptr->set_details(hit.details);
             ptr->set_score(hit.score);
         }
         return grpc::Status::OK;
@@ -178,6 +179,7 @@ public:
             Hit hit;
             hit.key = h.key();
             hit.meta = h.meta();
+            hit.details = h.details();
             hit.score = h.score();
             response->hits.push_back(hit);
         }

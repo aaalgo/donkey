@@ -78,6 +78,7 @@ class DonkeyHandler : virtual public api::DonkeyIf {
                 api::Hit h;
                 h.key = hit.key;
                 h.meta = hit.meta;
+                h.details = hit.details;
                 h.score = hit.score;
                 response.hits.push_back(h);
             }
@@ -201,6 +202,7 @@ public:
             hit.key = h.key;
             hit.meta = h.meta;
             hit.score = h.score;
+            hit.details = h.details;
             response->hits.push_back(hit);
         }
     }

@@ -108,11 +108,11 @@ namespace donkey {
         if (!isnormal(default_R)) throw ConfigError("invalid defaults.hint_R");
     }
 
-    void ExtractorBase::extract (string const &content, Object *object) const {
+    void ExtractorBase::extract (string const &content, string const &type, Object *object) const {
         namespace fs = boost::filesystem;
         fs::path path(fs::unique_path());
         WriteFile(path.native(), content);
-        extract_path(path.native(), object);
+        extract_path(path.native(), type, object);
         fs::remove(path);
     }
 
@@ -147,10 +147,10 @@ namespace donkey {
         
         if (request.raw) {
             if (request.content.size()) {
-                xtor.extract(request.content, object);
+                xtor.extract(request.content, request.type, object);
             }
             else { // url
-                xtor.extract_path(path.native(), object);
+                xtor.extract_path(path.native(), request.type, object);
             }
         }
         else {

@@ -34,6 +34,7 @@ message Hit {
     bytes key = 1;
     string meta = 2;
     double score = 3;
+    string details = 4;
 }
 
 message SearchResponse {
