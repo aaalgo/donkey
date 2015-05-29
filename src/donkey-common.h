@@ -152,30 +152,32 @@ namespace donkey {
             }
         }
 
-        void swap (MultiPartObject<T, D> &v) {
+        void swap (MultiPartObject<T, D, W> &v) {
             std::swap(parts, v.parts);
         }
     };
 
-    template <typename T>
+    template <typename O, typename T>
     class TrivialMatcher {
     public:
+        typedef O object_type;
         typedef T feature_similarity_type;
         static constexpr int POLARITY = feature_similarity_type::POLARITY;
 
         TrivialMatcher (Config const &config) {
         }
 
-        float apply (Object const &query, Candidate const &cand) const {
+        float apply (object_type const &query, Candidate const &cand) const {
             BOOST_VERIFY(cand.hints.size());
             return cand.hints[0].value;
         }
     };
 
-    template <typename T>
+    template <typename O, typename T>
     class CountingMatcher {
         float th;
     public:
+        typedef O object_type;
         typedef T feature_similarity_type;
         static constexpr int POLARITY = 1;
 
@@ -184,7 +186,7 @@ namespace donkey {
         {
         }
 
-        float apply (Object const &query, Candidate const &cand) const {
+        float apply (object_type const &query, Candidate const &cand) const {
             BOOST_VERIFY(cand.hints.size());
             unsigned v = 0;
             for (auto const &h: cand.hints) {
