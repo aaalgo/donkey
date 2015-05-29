@@ -160,7 +160,7 @@ namespace donkey {
 
     template <typename T>
     class CountingMatcher {
-        float th;
+		protected: float th;
     public:
         typedef T feature_similarity_type;
         static constexpr int POLARITY = 1;
