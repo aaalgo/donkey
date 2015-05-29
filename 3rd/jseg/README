@@ -1,4 +1,7 @@
 Download JSEG from the following URL, apply the patch and type "make" to generate libseg.a.
 
 http://vision.ece.ucsb.edu/segmentation/jseg/software/
+http://old.vision.ece.ucsb.edu/segmentation/jseg/software/jseg.zip
 
+md5sum:
+183c1ca5b944494142396770d229c560  jseg.zip
