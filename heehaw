@@ -29,14 +29,6 @@ then
 fi
 
 
-if [ ! -f $PLUGIN_DIR/config.sh ]
-then
-	echo Missing $PLUGIN_DIR/config.sh
-	exit 3
-fi
-
-. plugins/$PLUGIN/config.sh
-
 rm -f src/Makefile.protocol.inc
 if [ "$PROTOCOL" = http ]
 then
