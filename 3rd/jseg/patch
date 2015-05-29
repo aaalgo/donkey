@@ -1,0 +1,365 @@
+diff -rupN jseg/cass_segment.c libjseg/cass_segment.c
+--- jseg/cass_segment.c	1969-12-31 19:00:00.000000000 -0500
++++ libjseg/cass_segment.c	2015-05-29 12:48:59.342534593 -0400
+@@ -0,0 +1,66 @@
++
++
++#include <stdio.h>
++#include <stdlib.h>
++#include <math.h>
++#include "segment.h"
++#include "ioutil.h"
++#include "imgutil.h"
++#include "mathutil.h"
++#include "quan.h"
++#include "memutil.h"
++
++float TQUAN = -1;
++float threshcolor = 0.4;
++int NSCALE = -1;
++int verbose_flag = 0;
++
++typedef unsigned char uchar;
++
++int image_segment (void **output, int *num_ccs, uchar *RGB, int NX, int NY)
++{
++      unsigned char *cmap;
++      int dim, imgsize,mapsize;
++      int N,i,j,k,TR,l;
++      float *LUV,**cb;
++      unsigned char *rmap;
++
++      dim = 3;
++      mapsize = NY*NX;
++      imgsize = mapsize*dim;
++
++      cb = (float **)fmatrix(256,dim);
++      LUV = (float *) malloc(imgsize*sizeof(float));
++      rgb2luv(RGB,LUV,imgsize);
++      
++      N=quantize(LUV,cb,1,NY,NX,dim,TQUAN);
++      /* printf("N=%d\n",N); */
++      cmap = (unsigned char *) calloc(mapsize,sizeof(unsigned char));
++      rgb2luv(RGB,LUV,imgsize);
++      getcmap(LUV,cmap,cb,mapsize,dim,N);
++      free_fmatrix(cb,256);
++      free (LUV);
++
++      rmap = (unsigned char *)calloc(NY*NX,sizeof(unsigned char));
++      TR = segment(rmap,cmap,N,1,NY,NX,RGB,NULL,NULL,I_JPG,dim,NSCALE,
++          0,0,1);
++      TR = merge1(rmap,cmap,N,1,NY,NX,TR,threshcolor);
++      printf("merge TR=%d\n",TR);
++      free(cmap);
++
++      for (i = 0; i < mapsize; i++) rmap[i]--;
++
++      *num_ccs = TR;
++      *output = rmap;
++      return 0;
++}
++
++int image_segment_param(float _TQUAN, int _NSCALE, float _threshcolor)
++{
++	TQUAN = _TQUAN;
++	NSCALE = _NSCALE;
++	threshcolor = _threshcolor;
++	return 0;
++}
++
++
+diff -rupN jseg/imgutil.c libjseg/imgutil.c
+--- jseg/imgutil.c	2000-11-30 13:16:00.000000000 -0500
++++ libjseg/imgutil.c	2015-05-29 12:48:57.882534584 -0400
+@@ -63,9 +63,9 @@ void rgb2yuv(unsigned char *img,int size
+     if (u>255) u=255; if (u<0) u=0;
+     if (v>255) v=255; if (v<0) v=0;
+ 
+-    img[i] = (unsigned char) round(y);
+-    img[i+1] = (unsigned char) round(u);
+-    img[i+2] = (unsigned char) round(v);
++    img[i] = (unsigned char) round2int(y);
++    img[i+1] = (unsigned char) round2int(u);
++    img[i+2] = (unsigned char) round2int(v);
+   }
+ }
+ 
+@@ -160,7 +160,7 @@ void luv2rgb(unsigned char *RGB,float *L
+       else vec[k] = 255*(1.099*pow(vec[k],0.45)-0.099);
+       if (vec[k]>255) vec[k] = 255;
+       else if (vec[k]<0) vec[k] = 0;
+-      RGB[i+k] = (unsigned char) round(vec[k]);
++      RGB[i+k] = (unsigned char) round2int(vec[k]);
+     }
+   }
+ }
+diff -rupN jseg/ioutil.c libjseg/ioutil.c
+--- jseg/ioutil.c	2000-11-30 13:16:00.000000000 -0500
++++ libjseg/ioutil.c	2015-05-29 12:48:56.882534578 -0400
+@@ -70,6 +70,7 @@ void outputresult(int media_type,char *o
+ {
+   switch (media_type)
+   {
++      /*
+     case I_YUV:
+       outputimgyuv(outfname,RGB,ny,nx);
+       break;
+@@ -91,6 +92,7 @@ void outputresult(int media_type,char *o
+     case I_GIF:
+       outputimggif(outfname,RGB,ny,nx,dim);
+       break;
++      */
+     default:
+       printf("Unknown media type \n");
+       exit (-1);
+@@ -99,6 +101,7 @@ void outputresult(int media_type,char *o
+ 
+ int inputimggif(char *infname,unsigned char **RGB,int *ny,int *nx)
+ {
++    /*
+   PICINFO pinfo;
+   int imagesize,i,dim,j,k;
+ 
+@@ -142,10 +145,14 @@ int inputimggif(char *infname,unsigned c
+   free(pinfo.pic);
+   if (pinfo.comment!=NULL) free(pinfo.comment);
+   return dim;
++    */
++    exit(-1);
++    return 0;
+ }
+ 
+ void outputimggif(char *outfname,unsigned char *RGB,int ny,int nx,int dim)
+ {
++    /*
+   int i,j,imagesize;
+   FILE *fp;
+   int ptype,numcols,colorstyle;
+@@ -186,6 +193,8 @@ void outputimggif(char *outfname,unsigne
+   fclose(fp);
+ 
+   if (dim==1) { free(rmap); free(gmap); free(bmap); }
++  */
++    exit(-1);
+ }
+ 
+ void inputimgraw(char *fname,unsigned char *img,int ny,int nx,int dim)
+@@ -243,7 +252,7 @@ void outfloat2raw(char *fname,float *img
+   {
+     if (img[i]>255) img[i]=255;
+     if (img[i]<0)   img[i]=0;
+-    tmp[i]=(unsigned char) round(img[i]);
++    tmp[i]=(unsigned char) round2int(img[i]);
+   }
+   fimg=fopen(fname,"wb");
+   fwrite(tmp, sizeof(unsigned char), imagesize, fimg);
+@@ -326,7 +335,7 @@ void outputimgyuv(char *fname,unsigned c
+       loc1 = loc0+3;
+       loc2 = loc0+3*nx;
+       loc3 = loc2+3;
+-      tmp[i] = (unsigned char) round(( ((float) img[loc0]) + 
++      tmp[i] = (unsigned char) round2int(( ((float) img[loc0]) + 
+           img[loc1]+img[loc2]+img[loc3]) /4);
+       i++;
+     }
+@@ -342,7 +351,7 @@ void outputimgyuv(char *fname,unsigned c
+       loc1 = loc0+3;
+       loc2 = loc0+3*nx;
+       loc3 = loc2+3;
+-      tmp[i] = (unsigned char) round(( ((float) img[loc0]) + 
++      tmp[i] = (unsigned char) round2int(( ((float) img[loc0]) + 
+           img[loc1]+img[loc2]+img[loc3]) /4);
+       i++;
+     }
+diff -rupN jseg/makefile libjseg/makefile
+--- jseg/makefile	2000-11-30 14:36:00.000000000 -0500
++++ libjseg/makefile	1969-12-31 19:00:00.000000000 -0500
+@@ -1,25 +0,0 @@
+-CC=gcc
+-CFLAGS = -O3 -I/usr1.bizet/users/deng/Software/jpeg-6b -L/usr1.bizet/users/deng/Software/jpeg-6b
+-# CFLAGS = -O2 -I/usr1.bizet/users/deng/Software/jpeg-6b
+-LIBS = -ljpeg -lm
+-
+-all: segdist
+-JPG = djpeg.o cjpeg.o
+-XVF = xvgif.o xvgifwr.o xvmisc.o xv24to8.o
+-SEGF = segment.o reggrow.o jfunc.o quan.o ioutil.o imgutil.o mathutil.o  memutil.o
+-
+-segdist: main.o $(SEGF) $(XVF) $(JPG)
+-	$(CC) $(CFLAGS) -o segdist main.o $(SEGF) $(XVF) $(JPG) $(LIBS)
+-#	cp segdist /new1a.maya/JSEG/software/segsun
+-
+-main.o: main.c ioutil.c imgutil.c memutil.c segment.h
+-segment.o: segment.c ioutil.c imgutil.c memutil.c segment.h
+-reggrow.o: reggrow.c ioutil.c imgutil.c memutil.c segment.h
+-jfunc.o: jfunc.c ioutil.c imgutil.c memutil.c segment.h
+-quan.o: quan.c imgutil.c mathutil.c memutil.c
+-ioutil.o: ioutil.c 
+-imgutil.o: imgutil.c
+-mathutil.o: mathutil.c
+-memutil.o: memutil.c
+-
+-
+diff -rupN jseg/Makefile libjseg/Makefile
+--- jseg/Makefile	1969-12-31 19:00:00.000000000 -0500
++++ libjseg/Makefile	2015-05-29 13:09:12.338541770 -0400
+@@ -0,0 +1,33 @@
++#CC=gcc
++#CFLAGS = -g
++# CFLAGS = -O2 -I/usr1.bizet/users/deng/Software/jpeg-6b
++#LIBS = 
++
++.PHONY:	all clean
++
++all: libseg.a
++
++JPG = djpeg.o cjpeg.o
++XVF = xvgif.o xvgifwr.o xvmisc.o xv24to8.o
++SEGF = segment.o reggrow.o jfunc.o quan.o ioutil.o imgutil.o mathutil.o  memutil.o
++
++segdist: main.o $(SEGF) $(XVF) $(JPG)
++	$(CC) $(CFLAGS) -o segdist main.o $(SEGF) $(XVF) $(JPG) $(LIBS)
++#	cp segdist /new1a.maya/JSEG/software/segsun
++
++libseg.a:	cass_segment.o imgutil.o memutil.o $(SEGF)
++	ar cr $@ $^
++	ranlib $@
++
++main.o: main.c ioutil.c imgutil.c memutil.c segment.h
++segment.o: segment.c ioutil.c imgutil.c memutil.c segment.h
++reggrow.o: reggrow.c ioutil.c imgutil.c memutil.c segment.h
++jfunc.o: jfunc.c ioutil.c imgutil.c memutil.c segment.h
++quan.o: quan.c imgutil.c mathutil.c memutil.c
++ioutil.o: ioutil.c 
++imgutil.o: imgutil.c
++mathutil.o: mathutil.c
++memutil.o: memutil.c
++
++clean:
++	rm *.o libseg.a
+diff -rupN jseg/mathutil.c libjseg/mathutil.c
+--- jseg/mathutil.c	2000-11-30 13:16:00.000000000 -0500
++++ libjseg/mathutil.c	2015-05-29 12:48:58.202534586 -0400
+@@ -26,7 +26,7 @@ void genwindow(float **window,int wsize)
+   }
+ }
+ 
+-int round(float x)
++int round2int(float x)
+ {
+   int i;
+   float y;
+diff -rupN jseg/mathutil.h libjseg/mathutil.h
+--- jseg/mathutil.h	2000-11-30 13:16:00.000000000 -0500
++++ libjseg/mathutil.h	2015-05-29 12:48:57.426534581 -0400
+@@ -12,7 +12,7 @@
+ #define PI 3.1415927
+ 
+ void genwindow(float **window,int wsize);
+-int round(float x);
++int round2int(float x);
+ void piksrt(int n, float *num, int *index);
+ void piksrtS2B(int n, float *num, int *index);
+ void piksrtint(int n, int *num, int *index);
+diff -rupN jseg/quan.c libjseg/quan.c
+--- jseg/quan.c	2000-11-30 13:16:00.000000000 -0500
++++ libjseg/quan.c	2015-05-29 12:48:55.630534571 -0400
+@@ -35,7 +35,7 @@ int debug=0;
+ 
+   for (i=0;i<ei;i++) weight[i] = exp(-weight[i]);
+   P=(unsigned char *)calloc(ei,sizeof(unsigned char));
+-  N=MAX(round(2*avgweight),round(17*sqrt(dim/3.0)));
++  N=MAX(round2int(2*avgweight),round2int(17*sqrt(dim/3.0)));
+   if (N>256) N=256;
+   N=greedy(B,ei,dim,N,cb,0.05,P,weight);
+ 
+@@ -387,7 +387,7 @@ int gla(float *A,int nvec,int ndim,int N
+       {
+ /*      assign a training vector not in the codebook as code vector */
+         codeword_exist=1;
+-        iv= round ( ((float) rand()) *(nvec-1)/RAND_MAX);
++        iv= round2int ( ((float) rand()) *(nvec-1)/RAND_MAX);
+         while (codeword_exist<=2 && codeword_exist>0)
+         {
+           j = iv*ndim;
+@@ -405,7 +405,7 @@ int gla(float *A,int nvec,int ndim,int N
+           if (jn==N) codeword_exist=0;
+           else 
+           { 
+-            iv = round( ((float) rand()) *(nvec-1)/RAND_MAX);
++            iv = round2int( ((float) rand()) *(nvec-1)/RAND_MAX);
+             codeword_exist++;
+           }
+         }
+diff -rupN jseg/segment.c libjseg/segment.c
+--- jseg/segment.c	2000-11-30 13:16:00.000000000 -0500
++++ libjseg/segment.c	2015-05-29 12:48:58.322534586 -0400
+@@ -354,7 +354,7 @@ int check,*check1;
+   appear = (int **)imatrix(nt,oldTR+1);
+   TR=getrmap3(rmap1,J,ny,nx,threshJ1[0],0,MINRSIZE,rmap0,n2bgrow,threshJ2[0],
+       oldTR,appear[0]);
+-  if (nt==1) return TR;
++  if (nt==1) {free_imatrix(appear, nt); return TR;}
+ 
+ /*
+ if (MM==1)
+@@ -380,7 +380,7 @@ if (MM==1)
+     rmap1 += imgsize; rmap0 += imgsize; J += imgsize; JT += imgsize;
+     st++;
+   }
+-  if (st>nt-tt+1) return TR;
++  if (st>nt-tt+1) {free_imatrix(appear,nt); return TR;}
+   tracklen = (int *) calloc(TR+1,sizeof(int));
+   for (i=1;i<=TR;i++) tracklen[i]=1;
+ 
+diff -rupN jseg/xvgif.c libjseg/xvgif.c
+--- jseg/xvgif.c	2000-11-30 13:16:00.000000000 -0500
++++ libjseg/xvgif.c	2015-05-29 12:48:56.326534575 -0400
+@@ -56,7 +56,7 @@ int BitOffset = 0,		/* Bit Offset of nex
+     BitsPerPixel,		/* Bits per pixel, read from GIF header */
+     BytesPerScanline,		/* bytes per scanline in output raster */
+     ColorMapSize,		/* number of colors */
+-    Background,			/* background color */
++    Background2int,			/* background2int color */
+     CodeSize,			/* Code size, read from GIF header */
+     InitCodeSize,		/* Starting code size, used during Clear */
+     Code,			/* Value returned by ReadCode */
+@@ -174,7 +174,7 @@ int LoadGIF(fname, pinfo, imagesize)
+   numcols = ColorMapSize = 1 << BitsPerPixel;
+   BitMask = ColorMapSize - 1;
+   
+-  Background = NEXTBYTE;		/* background color... not used. */
++  Background2int = NEXTBYTE;		/* background2int color... not used. */
+   
+   aspect = NEXTBYTE;
+   if (aspect) {
+diff -rupN jseg/xvgifwr.c libjseg/xvgifwr.c
+--- jseg/xvgifwr.c	2000-11-30 13:16:00.000000000 -0500
++++ libjseg/xvgifwr.c	2015-05-29 12:48:57.258534580 -0400
+@@ -44,7 +44,7 @@ int WriteGIF(fp, pic, ptype, w, h, rmap,
+ {
+   int   RWidth, RHeight;
+   int   LeftOfs, TopOfs;
+-  int   ColorMapSize, InitCodeSize, Background, BitsPerPixel;
++  int   ColorMapSize, InitCodeSize, Background2int, BitsPerPixel;
+   int   i,j,nc;
+   byte *pic8;
+   byte  rtemp[256],gtemp[256],btemp[256];
+@@ -65,7 +65,7 @@ int WriteGIF(fp, pic, ptype, w, h, rmap,
+   }
+ 
+   Interlace = 0;
+-  Background = 0;
++  Background2int = 0;
+ 
+ 
+   for (i=0; i<256; i++) { pc2nc[i] = r1[i] = g1[i] = b1[i] = 0; }
+@@ -133,7 +133,7 @@ int WriteGIF(fp, pic, ptype, w, h, rmap,
+   i |= (BitsPerPixel - 1);       /* OR in the # of bits per pixel */
+   fputc(i,fp);          
+ 
+-  fputc(Background, fp);         /* background color */
++  fputc(Background2int, fp);         /* background2int color */
+ 
+   fputc(0, fp);                  /* future expansion byte */
+ 
