@@ -149,7 +149,7 @@ class DonkeyClientImpl: public Service {
             callback();
         }
         catch (api::Exception const &ae) {
-            throw Error(ae.code(), ae.what());
+            throw Error(ae.why, ae.what);
         }
         catch (...) {
             throw Error("unknown error");
@@ -161,7 +161,7 @@ class DonkeyClientImpl: public Service {
             callback();
         }
         catch (api::Exception const &ae) {
-            throw Error(ae.code(), ae.what());
+            throw Error(ae.why, ae.what);
         }
         catch (...) {
             throw Error("unknown error");
