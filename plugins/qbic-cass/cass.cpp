@@ -10,10 +10,6 @@ namespace donkey {
 
 static float  dw[DIM] =  {6.0, 3.0, 1.5, 4.0, 2.0, 1.0, 4.0, 2.0, 1.0, 0.2, 0.4, 0.04, 0.007, 0.007};
 
-void apply_weight (Object *ds)
-{
-}
-
 // Box feature
 class Box {
     int     u1, v1, u2, v2; 
@@ -96,14 +92,24 @@ public:
 
 void Extractor::extract_path (string const &path, string const &type, Object *obj) const {
     cv::Mat rgb, hsv;
-    rgb = cv::imread(path,1);
-    cv::cvtColor(rgb, hsv, CV_BGR2HSV);
+    rgb = cv::imread(path,CV_LOAD_IMAGE_COLOR);
     // open source doesn't add padding by default
     // but let's still check
-    if (!rgb.isContinuous() || !hsv.isContinuous()) {
+    if (!rgb.isContinuous()) { // || !hsv.isContinuous()) {
         throw InternalError("opencv doesn't create continuous matrix");
     }
-    if (rgb.type() != CV_8UC3 || hsv.type() != CV_8UC3) {
+    if (rgb.type() != CV_8UC3) { //|| hsv.type() != CV_8UC3) {
+        throw InternalError("opencv doesn't create matrix of 8UC3");
+    }
+    {
+    using namespace std;
+    cerr << rgb.rows << 'x' << rgb.cols << endl;
+    }
+    cv::cvtColor(rgb, hsv, CV_BGR2HSV);
+    if (!hsv.isContinuous()) { // || !hsv.isContinuous()) {
+        throw InternalError("opencv doesn't create continuous matrix");
+    }
+    if (hsv.type() != CV_8UC3) { //|| hsv.type() != CV_8UC3) {
         throw InternalError("opencv doesn't create matrix of 8UC3");
     }
 

@@ -84,11 +84,19 @@ namespace donkey {
         }
     };
 
+    static constexpr int64_t ErrorCode_Success = 0;
+    static constexpr int64_t ErrorCode_Unknown = -1;
+
     class Error: public runtime_error {
+        int32_t c;
     public:
-        explicit Error (string const &what): runtime_error(what) {}
-        explicit Error (char const *what): runtime_error(what) {}
-        virtual int32_t code () const = 0;
+        explicit Error (string const &what): runtime_error(what), c(ErrorCode_Unknown) {}
+        explicit Error (char const *what): runtime_error(what), c(ErrorCode_Unknown) {}
+        explicit Error (string const &what, int32_t code): runtime_error(what), c(code) {}
+        explicit Error (char const *what, int32_t code): runtime_error(what), c(code) {}
+        virtual int32_t code () const {
+            return c;
+        }
     };
 
 #define DEFINE_ERROR(name, cc) \
@@ -99,8 +107,6 @@ namespace donkey {
         virtual int32_t code () const { return cc;} \
     }
 
-    static constexpr int64_t ErrorCode_Success = 0;
-    static constexpr int64_t ErrorCode_Unknown = -1;
     DEFINE_ERROR(InternalError, 0x0001);
     DEFINE_ERROR(ExternalError, 0x0002);
     DEFINE_ERROR(OutOfMemoryError, 0x0004);

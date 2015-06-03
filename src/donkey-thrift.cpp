@@ -143,6 +143,31 @@ class DonkeyClientImpl: public Service {
     mutable boost::shared_ptr<TTransport> transport;
     mutable boost::shared_ptr<TProtocol> protocol;
     mutable api::DonkeyClient client;
+
+    void protect (function<void()> const &callback) {
+        try {
+            callback();
+        }
+        catch (api::Exception const &ae) {
+            throw Error(ae.code(), ae.what());
+        }
+        catch (...) {
+            throw Error("unknown error");
+        }
+    }
+
+    void protect (function<void()> const &callback) const {
+        try {
+            callback();
+        }
+        catch (api::Exception const &ae) {
+            throw Error(ae.code(), ae.what());
+        }
+        catch (...) {
+            throw Error("unknown error");
+        }
+    }
+
 public:
     DonkeyClientImpl (Config const &config)
         :socket(new TSocket(config.get<string>("donkey.thrift.client.server", "localhost"), config.get<int>("donkey.thrift.client.port", 50052))),
@@ -165,56 +190,62 @@ public:
     }
 
     void insert (InsertRequest const &request, InsertResponse *response) {
-        api::InsertRequest req;
-        api::InsertResponse resp;
-        req.db = request.db;
-        req.raw = request.raw;
-        req.url = request.url;
-        req.content = request.content;
-        req.key = request.key;
-        req.meta = request.meta;
-        client.insert(resp, req);
-        response->time = resp.time;
-        response->load_time = resp.load_time;
-        response->journal_time = resp.journal_time;
-        response->index_time = resp.index_time;
+        protect([this, &response, request](){
+            api::InsertRequest req;
+            api::InsertResponse resp;
+            req.db = request.db;
+            req.raw = request.raw;
+            req.url = request.url;
+            req.content = request.content;
+            req.key = request.key;
+            req.meta = request.meta;
+            client.insert(resp, req);
+            response->time = resp.time;
+            response->load_time = resp.load_time;
+            response->journal_time = resp.journal_time;
+            response->index_time = resp.index_time;
+        });
     }
 
     void search (SearchRequest const &request, SearchResponse *response) const {
-        api::SearchRequest req;
-        api::SearchResponse resp;
-        req.db = request.db;
-        req.raw = request.raw;
-        req.url = request.url;
-        req.content = request.content;
-        req.__set_K(request.K);
-        req.__set_R(request.R);
-        req.__set_hint_K(request.hint_K);
-        req.__set_hint_R(request.hint_R);
-        client.search(resp, req);
-        response->time = resp.time;
-        response->load_time = resp.load_time;
-        response->filter_time = resp.filter_time;
-        response->rank_time = resp.rank_time;
-        response->hits.clear();
-        for (auto const &h: resp.hits) {
-            Hit hit;
-            hit.key = h.key;
-            hit.meta = h.meta;
-            hit.score = h.score;
-            hit.details = h.details;
-            response->hits.push_back(hit);
-        }
+        protect([this, &response, request](){
+            api::SearchRequest req;
+            api::SearchResponse resp;
+            req.db = request.db;
+            req.raw = request.raw;
+            req.url = request.url;
+            req.content = request.content;
+            req.__set_K(request.K);
+            req.__set_R(request.R);
+            req.__set_hint_K(request.hint_K);
+            req.__set_hint_R(request.hint_R);
+            client.search(resp, req);
+            response->time = resp.time;
+            response->load_time = resp.load_time;
+            response->filter_time = resp.filter_time;
+            response->rank_time = resp.rank_time;
+            response->hits.clear();
+            for (auto const &h: resp.hits) {
+                Hit hit;
+                hit.key = h.key;
+                hit.meta = h.meta;
+                hit.score = h.score;
+                hit.details = h.details;
+                response->hits.push_back(hit);
+            }
+        });
     }
 
     void misc (MiscRequest const &request, MiscResponse *response) {
-        api::MiscRequest req;
-        api::MiscResponse resp;
-        req.method = request.method;
-        req.db = request.db;
-        client.misc(resp, req);
-        response->code = resp.code;
-        response->text = resp.text;
+        protect([this, &response, request](){
+            api::MiscRequest req;
+            api::MiscResponse resp;
+            req.method = request.method;
+            req.db = request.db;
+            client.misc(resp, req);
+            response->code = resp.code;
+            response->text = resp.text;
+            });
     }
 };
 

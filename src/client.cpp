@@ -88,12 +88,17 @@ int main (int argc, char *argv[]) {
                 ReadFile(req.url, &req.content);
                 req.url.clear();
             }
-            client->insert(req, &resp);
-            cout << req.key;
-            if (verbose) {
-                cout << '\t' << resp.time << '\t' << resp.load_time << '\t' << resp.journal_time << '\t' << resp.index_time << endl;
+            try {
+                client->insert(req, &resp);
+                cout << req.key;
+                if (verbose) {
+                    cout << '\t' << resp.time << '\t' << resp.load_time << '\t' << resp.journal_time << '\t' << resp.index_time << endl;
+                }
+                cout << endl;
             }
-            cout << endl;
+            catch (Error const &e) {
+                cerr << "Error " << e.code() << ": " << e.what() << endl;
+            }
         }
     }
     else if (method == "search") {
@@ -111,15 +116,20 @@ int main (int argc, char *argv[]) {
             else {
                 req.url = url;
             }
-            client->search(req, &resp);
-            if (verbose) {
-                cout << key << ": " << resp.time << '\t' << resp.load_time << '\t' << resp.filter_time << '\t' << resp.rank_time << endl;
+            try {
+                client->search(req, &resp);
+                if (verbose) {
+                    cout << key << ": " << resp.time << '\t' << resp.load_time << '\t' << resp.filter_time << '\t' << resp.rank_time << endl;
+                }
+                for (auto const &h: resp.hits) {
+                    cout << key << " => " << h.key << '\t' << h.score << '\t' << h.meta << endl;
+                }
+                if (resp.hits.empty()) {
+                    cout << key << endl;
+                }
             }
-            for (auto const &h: resp.hits) {
-                cout << key << " => " << h.key << '\t' << h.score << '\t' << h.meta << endl;
-            }
-            if (resp.hits.empty()) {
-                cout << key << endl;
+            catch (Error const &e) {
+                cerr << "Error " << e.code() << ": " << e.what() << endl;
             }
         }
     }
