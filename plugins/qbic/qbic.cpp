@@ -12,7 +12,7 @@ namespace donkey {
 
         if( !src.data )
         { 
-        cerr<<"imread failed: "<< path << endl;
+        cerr<<"imread failed " << errno << ": '"<< path << "'" << endl;
         return ; }
 
         /// Separate the image in 3 places ( B, G and R )

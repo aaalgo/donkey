@@ -80,7 +80,7 @@ int main (int argc, char *argv[]) {
             req.raw = raw;
             req.key = line.substr(0, off);
             req.type = type;
-            req.url = line.substr(off+1, off2 - off);
+            req.url = line.substr(off+1, off2 - off-1);
             if (off2 + 1 < line.size()) {
                 req.meta = line.substr(off2 + 1);
             }
