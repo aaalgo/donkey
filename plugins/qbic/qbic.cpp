@@ -7,12 +7,12 @@ using namespace std;
 
 namespace donkey {
     void Extractor::extract_path (string const &path, string const &type, Object *object) const {
-        Mat src;
-        src = imread(path,1 );
+        Mat src = imread(path,1);
+        cerr << src.cols << ' ' << src.rows << endl;
 
         if( !src.data )
         { 
-        cerr<<"imread failed"<<endl;
+        cerr<<"imread failed " << errno << ": '"<< path << "'" << endl;
         return ; }
 
         /// Separate the image in 3 places ( B, G and R )
