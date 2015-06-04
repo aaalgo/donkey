@@ -22,6 +22,7 @@ struct Hit {
     1:required string key;
     2:required string meta;
     3:required double score;
+    4:required string details;
 }
 
 struct SearchResponse {

@@ -4,3 +4,4 @@ node_modules/
 *.swp
 test.js
 gen-nodejs/
+*.pid
