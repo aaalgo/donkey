@@ -12,6 +12,9 @@ mod={};
 //delete any other directory
 var mngr=function(cachePath,cacheDir,size){
 	this.dir=cacheDir;
+	if(!fs.existsSync(this.dir)){
+		fs.mkdirSync(this.dir);	
+	}
 	this.id=(new Date()-0+"");
 	this.root=path.join(this.dir,this.id);
 	this.url=cachePath+this.id+"/";
@@ -20,6 +23,7 @@ var mngr=function(cachePath,cacheDir,size){
 			file=path.join(this.root,value);
 			fs.unlink(file,function(){});
 		}});
+
 	fs.mkdirSync(this.root);
 	var dirs=fs.readdirSync(this.dir);
 	for(i in dirs){

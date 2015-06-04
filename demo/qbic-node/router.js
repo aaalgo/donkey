@@ -17,8 +17,14 @@ var icmgr=new img_cache.ImageCacheManager(config.imageCache.path,config.imageCac
 router.get('/search/file', function(req, res) {
     console.log("file request");
     function sendJson(data){res.json(data);}
-    donkey.search(req,sendJson,function(q){
-        res.json({error:"query_id is not valid, please use post."});
+    donkey.search(req,sendJson,function(q,callback){
+		ans=icmgr.get(req.query.img_id);
+		if(ans==null)
+        res.json({error:"img_id is not valid, please use post."});
+		else{
+			q.url=ans;
+			callback(null,q);
+		}
     })
 });
 //post request for search file
@@ -32,16 +38,16 @@ router.post('/search/file', function(req, res) {
 		}
 		var buf=req.files.file0.buffer;
 		try{	
-		console.log("before insert");
+			console.log("before insert");
 			icmgr.insert(buf,function(img_id,url){
-		console.log("after insert");
+				console.log("after insert");
 				q.url=url;
 				info.img_id=img_id;
 				callback(null,q);
 			})
 		}
 		catch(err){
-		console.log("fail insert");
+			console.log("fail insert");
 			callback(err);
 		}
 	})
