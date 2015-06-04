@@ -13,6 +13,7 @@ mod={};
 var mngr=function(cachePath,cacheDir,size){
 	this.dir=cacheDir;
 	if(!fs.existsSync(this.dir)){
+		console.log("mkdir "+this.dir);
 		fs.mkdirSync(this.dir);	
 	}
 	this.id=(new Date()-0+"");
@@ -24,12 +25,17 @@ var mngr=function(cachePath,cacheDir,size){
 			fs.unlink(file,function(){});
 		}});
 
+	console.log("mkdir "+this.root);
 	fs.mkdirSync(this.root);
 	var dirs=fs.readdirSync(this.dir);
 	for(i in dirs){
 		if(this.id!=dirs[i]){
-			fse.rmrf(path.join(this.dir,dirs[i]),function(err){
+var pa=path.join(this.dir,dirs[i])
+			fse.rmrf(pa,function(err){
 				if(err)console.error(err);
+				else{
+					console.log("rmdir "+pa);
+				}
 			})
 		}
 	}

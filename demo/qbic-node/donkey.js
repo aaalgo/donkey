@@ -34,8 +34,7 @@ ClientManager={
         //error handle
         //reconnect if connection is broken
         conn.on('error', function(err) {
-            console.log("thrift connection error");
-            console.log(err.stack);
+            console.error(err.stack);
             ClientManager.createConn();
             client=ClientManager.getClient();
         });

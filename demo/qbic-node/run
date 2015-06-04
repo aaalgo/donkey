@@ -1,4 +1,6 @@
 #!/bin/bash
+nodelog="node.log"
+
 function stop(){
 pids=""
 if [ -e server.pid ]
@@ -14,8 +16,9 @@ done
 }
 
 function start(){
-nohup nodejs server.js >>node.log &
+nohup nodejs server.js >>$nodelog 2>&1 &
 echo $!>server.pid
+echo start successful
 }
 
 
