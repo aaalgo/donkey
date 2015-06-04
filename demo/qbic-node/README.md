@@ -5,13 +5,14 @@ A web demo of donkey.
 + thrift
 
 ##install
-run install
+./run install
 
 ##run
-+ run start
++ ./run start
 
 	will start the web server
 
-+ run stop
++ ./run stop
+
 	stop the web server
 
