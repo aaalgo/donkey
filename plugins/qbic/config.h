@@ -24,9 +24,9 @@ namespace donkey {
         void extract_path (const string &path, string const &type, Object *object) const;
     };
 
-    class Matcher: public TrivialMatcher<FeatureSimilarity> {
+    class Matcher: public TrivialMatcher<Object, FeatureSimilarity> {
     public:
-        Matcher (Config const &config): TrivialMatcher<FeatureSimilarity>(config) {
+        Matcher (Config const &config): TrivialMatcher<Object, FeatureSimilarity>(config) {
         };
     };
 

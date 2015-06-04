@@ -4,7 +4,7 @@
 #include <array>
 #include <algorithm>
 #include <iostream>
-#include <boost/type_traits.hpp>
+#include <type_traits>
 // common feature and objects 
 
 namespace donkey {
@@ -97,12 +97,20 @@ namespace donkey {
         }
     };
 
-    template <typename T, typename D = void>
+    struct tag_no_data {
+    };
+
+    struct tag_no_weight {
+    };
+
+    template <typename T, typename D = tag_no_data, typename W = tag_no_weight>
     struct MultiPartObject: public ObjectBase {
         typedef T feature_type;
         typedef D data_type;
+        typedef W weight_type;
         struct Part {
             feature_type feature;
+            weight_type weight;
             data_type data;
         };
         vector<Part> parts;
@@ -120,7 +128,10 @@ namespace donkey {
             BOOST_VERIFY(sz <= MAX_FEATURES);
             parts.resize(sz);
             for (auto &part: parts) {
-                if (!boost::is_void<data_type>::value) {
+                if (!std::is_same<weight_type, tag_no_weight>::value) {
+                    is.read(reinterpret_cast<char *>(&part.weight), sizeof(weight_type));
+                }
+                if (!std::is_same<data_type, tag_no_data>::value) {
                     is.read(reinterpret_cast<char *>(&part.data), sizeof(data_type));
                 }
                 part.feature.read(is);
@@ -131,37 +142,42 @@ namespace donkey {
             uint16_t sz = parts.size();
             os.write(reinterpret_cast<char const *>(&sz), sizeof(sz));
             for (auto const &part: parts) {
-                if (!boost::is_void<data_type>::value) {
+                if (!std::is_same<weight_type, tag_no_weight>::value) {
+                    os.write(reinterpret_cast<char const *>(&part.weight), sizeof(weight_type));
+                }
+                if (!std::is_same<data_type, tag_no_data>::value) {
                     os.write(reinterpret_cast<char const *>(&part.data), sizeof(data_type));
                 }
                 part.feature.write(os);
             }
         }
 
-        void swap (MultiPartObject<T, D> &v) {
+        void swap (MultiPartObject<T, D, W> &v) {
             std::swap(parts, v.parts);
         }
     };
 
-    template <typename T>
+    template <typename O, typename T>
     class TrivialMatcher {
     public:
+        typedef O object_type;
         typedef T feature_similarity_type;
         static constexpr int POLARITY = feature_similarity_type::POLARITY;
 
         TrivialMatcher (Config const &config) {
         }
 
-        float apply (Object const &query, Candidate const &cand) const {
+        float apply (object_type const &query, Candidate const &cand) const {
             BOOST_VERIFY(cand.hints.size());
             return cand.hints[0].value;
         }
     };
 
-    template <typename T>
+    template <typename O, typename T>
     class CountingMatcher {
 		protected: float th;
     public:
+        typedef O object_type;
         typedef T feature_similarity_type;
         static constexpr int POLARITY = 1;
 
@@ -170,7 +186,7 @@ namespace donkey {
         {
         }
 
-        float apply (Object const &query, Candidate const &cand) const {
+        float apply (object_type const &query, Candidate const &cand) const {
             BOOST_VERIFY(cand.hints.size());
             unsigned v = 0;
             for (auto const &h: cand.hints) {

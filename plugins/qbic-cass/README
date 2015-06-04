@@ -1,0 +1,8 @@
+This is an implementation of the image feature extractor used in the following paper.
+
+In order to build this plugin, one needs to produce libseg.a (see 3rd/jseg/README) and make it available to the compiler.
+
+Qin Lv, Moses Charikar, Kai Li. Image Similarity Search with Compact Data Structures. In CIKM'04: Proceedings of the 13th ACM Conference on Information and Knowledge Management, Pages 208-217, Nov. 2004. 
+
+
+- Wei Dong
