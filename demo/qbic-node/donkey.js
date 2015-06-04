@@ -58,10 +58,18 @@ setInterval(function(){
 },config.thriftPingInterval);
 
 
+
+//handle search request from router.js
+//retrieve search option from req
+//retrieve search content from fetchContent
+//return using callback
 function search(req,callback,fetchContent){
     var id=req.query.query_id;
     var result=searchCache.get(id);
     var info={id:id};
+	if(info.id==null){
+		info.id=searchCache.newId();
+	}
     //not in searchCache
     if(result==null){
         var q=new ttypes.SearchRequest();
@@ -69,71 +77,81 @@ function search(req,callback,fetchContent){
         q.raw=true;
         q.type="";
         q.url="";
-        q.content="";
-        console.log("begin fetch");
-
-        var fet=fetchContent(q,function(fet){
-            console.log("fetch"+ fet)
-            if(fet!=null){
-                console.log("fetch failed");
-                callback(fet);
-                return;
-            };
-        client.search(q,function(err,response){
-            if(err==null){
-                var id=searchCache.newId();
-                searchCache.set(id,response);
-                info.id=id;
-                for(i in response.hits){
-                    response.hits[i].meta=JSON.parse(response.hits[i].meta);
-                    response.hits[i].meta.thumb=config.rootPath+response.hits[i].meta.thumb;
-                }
-                paginate(req,response,info,searchRespond(callback));
-            }else{
-                callback(err);
-
-            }});
-
-        });
-    //in searchCache
-    }else{
-        paginate(req,result,info,searchRespond(callback));
-    }
+		q.content="";
+		fetchContent(q,thriftSearch(paginate(req,callback),info),info);
+	}
+	//in searchCache
+	else{
+		paginate(req,callback)(null,result,info);
+	}
 }
 mod.search=search;
 
-function paginate(req,result,info,respond){
-    var numOfItems=req.query.num_of_items-0;
-    if(numOfItems==null||isNaN(numOfItems)||numOfItems<1){
-        numOfItems=config.apiOptions.numberOfItems;
-    }
 
-    info.numOfPages=Math.floor((result.hits.length-1)/numOfItems+1);
+//return a function would be called after search request for thrift is prepared
+//process thrift request and respond with callback
+function thriftSearch(callback,info){
+	return function(err,request){
+		if(err!=null){
+			console.error(err.stack);
+			callback(err);
+		}else{
+			client.search(request,function(err,response){
+				if(err==null){
+					for(i in response.hits){
+						response.hits[i].meta=JSON.parse(response.hits[i].meta);
+						response.hits[i].meta.thumb=config.rootPath+response.hits[i].meta.thumb;
+					}
+					searchCache.set(info.id,response);
+					callback(null,response,info);
+				}else{
+					callback(err);
 
-    info.pageNum=req.query.page-0;
-    if(info.pageNum==null||isNaN(info.pageNum)||info.pageNum<0){
-        info.pageNum=0;
-    }
-
-    var resultPage={
-        time:result.time,
-        load_time:result.load_time,
-        filter_time:result.filter_time,
-        rank_time:result.rank_time,
-        hits:result.hits.slice(info.pageNum*numOfItems,(info.pageNum+1)*numOfItems)
-    }
-    respond(resultPage,info);
+				}
+			});
+		}
+	}
 }
 
-function searchRespond(callback){
-    return function(result,info){
-        var json={
-            query_id:info.id,
-            pageNum:info.pageNum,
-            numOfPages: info.numOfPages,
-            data:result
-        };
-        callback(json);
-    }
+
+//return a function slicing result into a page according to information in req and info
+//req store information from GET parameter
+//info store information after search
+//return resultPage using respond function
+function paginate(req,respond){
+	return function(err,result,info){
+		if(err){
+			console.error(err.stack);
+			respond(err);
+			return;
+		}
+		var numOfItems=req.query.num_of_items-0;
+		if(numOfItems==null||isNaN(numOfItems)||numOfItems<1){
+			numOfItems=config.apiOptions.numberOfItems;
+		}
+
+		info.numOfPages=Math.floor((result.hits.length-1)/numOfItems+1);
+
+		info.pageNum=req.query.page-0;
+		if(info.pageNum==null||isNaN(info.pageNum)||info.pageNum<0){
+			info.pageNum=0;
+		}
+
+		var resultPage={
+			time:result.time,
+			load_time:result.load_time,
+			filter_time:result.filter_time,
+			rank_time:result.rank_time,
+			hits:result.hits.slice(info.pageNum*numOfItems,(info.pageNum+1)*numOfItems)
+		}
+		var json={
+			query_id:info.id,
+			pageNum:info.pageNum,
+			numOfPages: info.numOfPages,
+			data:resultPage
+		};
+		respond(json);
+	}
 }
+
 module.exports = mod

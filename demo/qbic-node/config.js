@@ -13,6 +13,12 @@ config.thriftPort=38082;
 config.thriftPingInterval=5000;
 config.rootPath="/qbic/";
 
+config.imageCache={
+	dir:"public/img-cache",
+	path:(config.siteUrl+"public/img-cache/"),
+	size:100
+};
+
 config.apiOptions={
     searchCacheSize:1000,
     numberOfItems:20
