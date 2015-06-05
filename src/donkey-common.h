@@ -43,6 +43,7 @@ namespace donkey {
                 double v = 0;
                 for (unsigned i = 0; i < D; ++i) {
                     double a = std::abs(v1.data[i] - v2.data[i]);
+                    v += a;
                 }
                 return v;
             }
