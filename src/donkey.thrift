@@ -10,7 +10,7 @@ struct SearchRequest {
     1:required i32 db;
     2:required bool raw;
     3:required string url;
-    4:required string content;
+    4:required binary content;
     5:required string type;
     6:optional i32 K;
     7:optional double R;
@@ -38,7 +38,7 @@ struct InsertRequest {
     2:required string key;
     3:required bool raw;
     4:required string url;
-    5:required string content;
+    5:required binary content;
     6:required string meta;
     7:required string type;
 }
