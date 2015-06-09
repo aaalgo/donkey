@@ -15,6 +15,7 @@ LDLIBS += -lkgraph $(PROTOCOL_LIBS) -lboost_timer -lboost_chrono -lboost_program
 
 X_HEADERS = $(patsubst %.h, plugin/%.h, $(EXTRA_HEADERS))
 X_OBJS = $(patsubst %.cpp, plugin/%.o, $(EXTRA_SOURCES))
+X_OBJS = $(patsubst %.c, plugin/%.o, $(X_OBJS))
 
 HEADERS = donkey.h plugin/config.h $(X_HEADERS) 
 
