@@ -63,6 +63,18 @@ namespace donkey {
         };
 
         template <typename T, unsigned D>
+        struct Hamming: public Distance {
+            typedef VectorFeature<T, D> feature_type;
+            static float apply (feature_type const &v1, feature_type const &v2) {
+                int v = 0;
+                for (unsigned i = 0; i < D; ++i) {
+                    v += __builtin_popcount(v1.data[i] ^ v2.data[i]);
+                }
+                return v;
+            }
+        };
+
+        template <typename T, unsigned D>
         struct TypeHamming: public Distance {
             typedef VectorFeature<T, D> feature_type;
             static float apply (feature_type const &v1, feature_type const &v2) {

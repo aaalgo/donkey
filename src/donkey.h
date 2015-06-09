@@ -113,6 +113,7 @@ namespace donkey {
     DEFINE_ERROR(FileSystemError, 0x0008);
     DEFINE_ERROR(RequestError, 0x0016);
     DEFINE_ERROR(ConfigError, 0x0032);
+    DEFINE_ERROR(PluginError, 0x0064);
 #undef DEFINE_ERROR
 
     struct Feature;
