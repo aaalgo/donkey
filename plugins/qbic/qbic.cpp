@@ -8,7 +8,6 @@ using namespace std;
 namespace donkey {
     void Extractor::extract_path (string const &path, string const &type, Object *object) const {
         Mat src = imread(path,1);
-        cerr << src.cols << ' ' << src.rows << endl;
 
         if( !src.data )
         { 

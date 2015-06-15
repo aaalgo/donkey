@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<body>
+<script src="http://ajax.googleapis.com/ajax/libs/jquery/1.11.2/jquery.min.js"></script>
+</script>
+
+<form action="/search/" method="POST">
+    {% csrf_token %}
+    <table>
+        <tr>
+            <td>Search URL:</td>
+            <td><input name="url"></input></td>
+            <td><input type="submit"/></td>
+        </tr>
+    </table>
+</form>
+
+<form action="/search/" method="POST" enctype="multipart/form-data">
+    {% csrf_token %}
+    <table>
+        <tr>
+            <td>Upload File:</td>
+            <td><input type="file" name="file"/></td>
+            <td><input type="submit"/></td>
+        </tr>
+    </table>
+</form>
+    {{url}}
+    {{content}}
+</body>
+</html>
