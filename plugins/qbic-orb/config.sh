@@ -1,0 +1,7 @@
+export SERVER_PREFIX=qbic
+export EXTRA_CXXFLAGS=
+export EXTRA_LDFLAGS=
+export EXTRA_HEADERS=
+export EXTRA_LIBS=
+
+

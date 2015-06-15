@@ -1,21 +1,18 @@
 A web demo of donkey.
 ##requirement
++ nodejs
 + npm
 + thrift
 
 ##install
-./configure.sh
+./run install
 
 ##run
-+ node(nodejs) thriftServer.js &
-
-	will run thrift server for test
-
-+ ./run.sh
++ ./run start
 
 	will start the web server
 
-##url
-1. GET host:port/ 		main page
-2. POST host:port/search/file	ajax api for searching content
-3. GET host:port/search/url	ajax api for searching url
++ ./run stop
+
+	stop the web server
+
