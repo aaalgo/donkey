@@ -41,9 +41,9 @@ namespace donkey {
 			void extract_path (const string &path, string const &type, Object *object) const;
 	};
 
-	class Matcher: public CountingMatcher<FeatureSimilarity> {
+	class Matcher: public CountingMatcher<Object,FeatureSimilarity> {
 		public:
-			Matcher (Config const &config): CountingMatcher<FeatureSimilarity>(config) {
+			Matcher (Config const &config): CountingMatcher<Object,FeatureSimilarity>(config) {
 			};
         float apply (Object const &query, Candidate const &cand) const;
 	};

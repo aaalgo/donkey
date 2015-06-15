@@ -14,10 +14,10 @@ namespace donkey {
 		{ 
 			return ; }
 
-		BRISK brisk;
+		ORB orb;
 		vector<KeyPoint> keyPoints;
 		Mat descriptors;
-		brisk(src,Mat(),keyPoints,descriptors);
+		orb(src,Mat(),keyPoints,descriptors);
 		auto &parts=object->parts;
 		parts.resize(keyPoints.size());
 		for(int i=0;i<keyPoints.size();i++){
@@ -29,7 +29,7 @@ namespace donkey {
 	}
 	float Matcher::apply (Object const &query, Candidate const &cand) const {
 		BOOST_VERIFY(cand.hints.size());
-		unsigned v = 0;
+		/*unsigned v = 0;
 		vector<Point2f> src;
 		vector<Point2f> dst;
 		for (auto const &h: cand.hints) {
@@ -44,8 +44,8 @@ namespace donkey {
 			if(b){
 				++v;
 			}
-		}
-		return v;
+		}*/
+		return float(cand.hints.size())/query.parts.size();
 	}
 }
 

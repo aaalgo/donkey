@@ -188,7 +188,7 @@ namespace donkey {
 
     template <typename O, typename T>
     class CountingMatcher {
-		protected: float th;
+		float th;
     public:
         typedef O object_type;
         typedef T feature_similarity_type;

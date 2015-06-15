@@ -9,7 +9,8 @@ using namespace std;
 
 int main(int argc,char *argv[])
 {
-	Extractor ex((Config()));
+	Config cfg;
+	Extractor ex(cfg);
 	Object obj;
 	ex.extract_path(argv[1],"",&obj);
 	
