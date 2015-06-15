@@ -1,4 +1,4 @@
-//#include <kgraph.h>
+#include <kgraph.h>
 #include "donkey.h"
 
 namespace donkey {

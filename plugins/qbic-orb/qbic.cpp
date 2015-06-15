@@ -45,7 +45,7 @@ namespace donkey {
 				++v;
 			}
 		}*/
-		return float(cand.hints.size())/query.parts.size();
+		return float(cand.hints.size())/sqrt(query.parts.size());
 	}
 }
 
