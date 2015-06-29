@@ -1,0 +1,44 @@
+#!/bin/bash
+nodelog="node.log"
+
+function stop(){
+pids=""
+if [ -e server.pid ]
+then
+	pids=$(cat server.pid)
+fi
+
+for i in $pids;
+do
+	echo kill $i
+	kill $i
+done
+}
+
+function start(){
+nohup nodejs server.js >>$nodelog 2>&1 &
+echo $!>server.pid
+echo start successful
+}
+
+
+case $1 in
+	start )
+		stop
+		start
+		;;
+	stop )
+		stop
+		;;
+	restart )
+		stop
+		start
+		;;
+	install )
+		npm install
+		thrift --gen js:node donkey.thrift
+		;;
+	* )
+		echo start stop restart install
+esac
+

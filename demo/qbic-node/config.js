@@ -6,9 +6,18 @@ var config={};
 config.rootDir=__dirname;
 config.viewsDir=path.join(config.rootDir,'views');
 
+config.siteUrl="http://donkey.wdong.org:10080/qbic/"
+
 config.port=38081;
 config.thriftPort=38082;
+config.thriftPingInterval=5000;
 config.rootPath="/qbic/";
+
+config.imageCache={
+	dir:"public/img-cache",
+	path:(config.siteUrl+"public/img-cache/"),
+	size:100
+};
 
 config.apiOptions={
     searchCacheSize:1000,
