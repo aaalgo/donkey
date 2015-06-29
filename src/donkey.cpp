@@ -20,7 +20,12 @@ namespace donkey {
     struct color_tag;
 
     void LoadConfig (string const &path, Config *config) {
-        boost::property_tree::read_xml(path, *config);
+        try {
+            boost::property_tree::read_xml(path, *config);
+        }
+        catch (...) {
+            LOG(warning) << "Cannot load config file " << path << ", using defaults.";
+        }
     }
 
     void OverrideConfig (std::vector<std::string> const &overrides, Config *config) {

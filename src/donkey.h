@@ -49,7 +49,7 @@ namespace donkey {
 
     // maximal number of DBs
     static constexpr size_t DEFAULT_MAX_DBS = 256;
-    static constexpr size_t MAX_FEATURES = 10000;   // maximal features per object
+    static constexpr size_t MAX_FEATURES = 100000;   // maximal features per object
     static constexpr size_t MAX_BINARY = 128 * 1024 * 1024; // maximal raw object size, 128M
 
     // Configuration

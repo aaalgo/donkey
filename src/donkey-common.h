@@ -21,6 +21,7 @@ namespace donkey {
     struct VectorFeature {
         typedef T value_type;
         static unsigned constexpr DIM = D;
+        static unsigned constexpr BYTES = DIM * sizeof(value_type);
         std::array<T, D> data;
 
         void read (std::istream &is) {
@@ -30,6 +31,11 @@ namespace donkey {
         void write (std::ostream &os) const {
             os.write(reinterpret_cast<char const *>(&data[0]), sizeof(value_type) * DIM);
         }
+    };
+
+    template <unsigned B, typename C = uint32_t>
+    struct BitVectorFeature: public VectorFeature<C, B / sizeof(C) / 8> {
+        static unsigned constexpr BITS = B;
     };
 
     namespace distance {
@@ -62,15 +68,29 @@ namespace donkey {
             }
         };
 
+        template <unsigned D>
+        int hamming_with_popcount (uint32_t const *v1, uint32_t const *v2) {
+            int v = 0;
+            for (unsigned i = 0; i < D; ++i) {
+                v += __builtin_popcount(v1[i] ^ v2[i]);
+            }
+            return v;
+        }
+
+        template <unsigned D>
+        int hamming_with_popcount (uint64_t const *v1, uint64_t const *v2) {
+            int v = 0;
+            for (unsigned i = 0; i < D; ++i) {
+                v += __builtin_popcountll(v1[i] ^ v2[i]);
+            }
+            return v;
+        }
+
         template <typename T, unsigned D>
         struct Hamming: public Distance {
             typedef VectorFeature<T, D> feature_type;
             static float apply (feature_type const &v1, feature_type const &v2) {
-                int v = 0;
-                for (unsigned i = 0; i < D; ++i) {
-                    v += __builtin_popcount(v1.data[i] ^ v2.data[i]);
-                }
-                return v;
+                return hamming_with_popcount<D>(&v1.data[0], &v2.data[0]);
             }
         };
 
@@ -188,14 +208,12 @@ namespace donkey {
 
     template <typename O, typename T>
     class CountingMatcher {
-        float th;
     public:
         typedef O object_type;
         typedef T feature_similarity_type;
         static constexpr int POLARITY = 1;
 
-        CountingMatcher (Config const &config):
-            th(config.get<float>("donkey.matcher.threshold") * POLARITY)
+        CountingMatcher (Config const &config)
         {
         }
 
@@ -203,9 +221,7 @@ namespace donkey {
             BOOST_VERIFY(cand.hints.size());
             unsigned v = 0;
             for (auto const &h: cand.hints) {
-                if (h.value * POLARITY >= th) {
-                    ++v;
-                }
+                ++v;
             }
             return v;
         }

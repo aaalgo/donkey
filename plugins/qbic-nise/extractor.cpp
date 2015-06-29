@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <magic.h>
 extern "C" {
 #include "generic.h"
 #include "sift.h"
@@ -165,10 +166,35 @@ namespace donkey {
     }
 
     void Extractor::extract_path (string const &path, string const &, Object *object) const {
+        object->parts.clear();
+
+        static constexpr unsigned HEADER_SIZE = 4;
+        string header;
+        header.resize(HEADER_SIZE);
+
+        {
+            ifstream is(path.c_str(), ios::binary);
+            if (!is) return;
+            is.read(&header[0], header.size());
+            header.resize(is.tellg());
+            if (header.empty()) return;
+        }
+
         CImg<unsigned char> image;
-
-        image.load_jpeg(path.c_str());
-
+        // this is only  a rough test
+        if (header[0] = 0xff) {
+            image.load_jpeg(path.c_str());
+        }
+        else if (header[0] == 0x89) {
+            image.load_png(path.c_str());
+        }
+        else if (header[0] == 'G') {
+            image.load_gif_external(path.c_str());
+        }
+        else if (header[0] == 'I' || header[0] == 'M') {
+            image.load_tiff(path.c_str());
+        }
+        else return;
         return impl->extract(image, object);
     }
 
