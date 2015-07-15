@@ -531,7 +531,18 @@ namespace donkey {
     };
 
     class Server: public Service {
+        class dir_checker {
+        public:
+            dir_checker (string const &dir) {
+                int v = ::mkdir(dir.c_str(), 0777);
+                if (v && (errno != EEXIST)) {
+                    LOG(error) << "Root director " << dir << " does not exist and cannot be created.";
+                    BOOST_VERIFY(0);
+                }
+            }
+        };
         string root;
+        dir_checker __dir_checker;
         Journal journal;
         vector<DB *> dbs;
         Extractor xtor;
@@ -545,6 +556,7 @@ namespace donkey {
     public:
         Server (Config const &config)
             : root(config.get<string>("donkey.root")),
+            __dir_checker(root),
             journal(root + "/journal"),
             dbs(config.get<size_t>("donkey.max_dbs", DEFAULT_MAX_DBS), nullptr),
             xtor(config)
