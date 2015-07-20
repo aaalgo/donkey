@@ -31,6 +31,9 @@ int main (int argc, char *argv[]) {
         (",R", po::value(&search.R)->default_value(NAN), "")
         ("hint_K", po::value(&search.hint_K)->default_value(-1), "")
         ("hint_R", po::value(&search.hint_R)->default_value(NAN), "")
+        ("embed", "")
+        ("no-sync", "")
+        ("no-reindex", "")
         ("verbose,v", "")
         ;
 
@@ -58,7 +61,13 @@ int main (int argc, char *argv[]) {
     LoadConfig(config_path, &config);
     OverrideConfig(overrides, &config);
 
-    Service *client = make_client(config);
+    Service *client = nullptr;
+    if (vm.count("embed")) {
+        client = new Server(config);
+    }
+    else {
+        client = make_client(config);
+    }
     if (method == "ping") {
         client->ping();
     }
@@ -98,6 +107,20 @@ int main (int argc, char *argv[]) {
             }
             catch (Error const &e) {
                 cerr << "Error " << e.code() << ": " << e.what() << endl;
+            }
+        }
+        {
+            MiscRequest req;
+            MiscResponse resp;
+            req.db = db;
+            if (vm.count("no-reindex") == 0) {
+                req.method = "reindex";
+                client->misc(req, &resp);
+            }
+            if (vm.count("no-sync") == 0) {
+                req.method = "sync";
+                client->misc(req, &resp);
+                client->misc(req, &resp);
             }
         }
     }

@@ -21,7 +21,7 @@ HEADERS = donkey.h plugin/config.h $(X_HEADERS)
 
 TAGS = protocol.tag
 SERVER_OBJS = server.o donkey.o index-kgraph.o index-lsh.o $(PROTOCOL_OBJS) $(X_OBJS)
-CLIENT_OBJS = client.o donkey.o $(PROTOCOL_OBJS) $(X_OBJS)
+CLIENT_OBJS = client.o donkey.o index-kgraph.o index-lsh.o $(PROTOCOL_OBJS) $(X_OBJS)
 
 server:	$(TAGS) $(SERVER_OBJS) $(HEADERS)  
 	echo $(EXTRA_SOURCES)
