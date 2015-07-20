@@ -12,6 +12,7 @@ namespace donkey {
             uint32_t tag;
             Feature const *feature;
         };
+        size_t min_index_size;
         size_t indexed_size;
         vector<Entry> entries;
 
@@ -51,7 +52,11 @@ namespace donkey {
         KGraph::SearchParams search_params;
         KGraph *kg_index;
     public:
-        KGraphIndex (Config const &config): Index(config), indexed_size(0), kg_index(nullptr) {
+        KGraphIndex (Config const &config): 
+            Index(config),
+            min_index_size(config.get<size_t>("donkey.kgraph.min", 10000)),
+            indexed_size(0),
+            kg_index(nullptr) {
             index_params.iterations = config.get<unsigned>("donkey.kgraph.index.iterations", index_params.iterations);
             index_params.L = config.get<unsigned>("donkey.kgraph.index.L", index_params.L);
             index_params.K = config.get<unsigned>("donkey.kgraph.index.K", index_params.K);
@@ -79,31 +84,35 @@ namespace donkey {
 
         virtual void search (Feature const &query, SearchRequest const &sp, std::vector<Match> *matches) const {
             matches->clear();
+
+            SearchOracle oracle(this, query);
+            KGraph::SearchParams params(search_params);
+            int K = sp.hint_K;
+            float R = sp.hint_R;
+            if (K <= 0) K = default_K;
+            if (!isnormal(R)) R = default_R;
+            if (FeatureSimilarity::POLARITY >= 0) {
+                R *= -1;
+            }
+            vector<unsigned> ids(K);
+            vector<float> dists(K);
+            unsigned L = 0;
+            params.K = K;
+            params.epsilon = R;
             if (kg_index) {
-                SearchOracle oracle(this, query);
-                KGraph::SearchParams params(search_params);
-                int K = sp.hint_K;
-                float R = sp.hint_R;
-                if (K <= 0) K = default_K;
-                if (!isnormal(R)) R = default_R;
-                if (FeatureSimilarity::POLARITY >= 0) {
-                    R *= -1;
-                }
-                params.K = K;
-                params.epsilon = R;
                 // update search params
-                vector<unsigned> ids(K);
-                vector<float> dists(K);
-                //unsigned L = kg_index->search(oracle, params, &ids[0], &dists[0], nullptr);
-                unsigned L = oracle.search(params.K, params.epsilon, &ids[0], &dists[0]);
-                matches->resize(L);
-                for (unsigned i = 0; i < L; ++i) {
-                    auto &m = matches->at(i);
-                    auto const &e = entries[ids[i]];
-                    m.object = e.object;
-                    m.tag = e.tag;
-                    m.distance = dists[i];
-                }
+                L = kg_index->search(oracle, params, &ids[0], &dists[0], nullptr);
+            }
+            else {
+                L = oracle.search(params.K, params.epsilon, &ids[0], &dists[0]);
+            }
+            matches->resize(L);
+            for (unsigned i = 0; i < L; ++i) {
+                auto &m = matches->at(i);
+                auto const &e = entries[ids[i]];
+                m.object = e.object;
+                m.tag = e.tag;
+                m.distance = dists[i];
             }
             BOOST_VERIFY(indexed_size == entries.size());
         }
@@ -126,11 +135,14 @@ namespace donkey {
 
         virtual void rebuild () {   // insert must not happen at this time
             if (entries.size() == indexed_size) return;
-            KGraph *kg = KGraph::create();
-            LOG(info) << "Rebuilding index for " << entries.size() << " features.";
-            IndexOracle oracle(this);
-            kg->build(oracle, index_params, NULL);
-            LOG(info) << "Swapping on new index...";
+            KGraph *kg = nullptr;
+            if (entries.size() >= min_index_size) {
+                kg = KGraph::create();
+                LOG(info) << "Rebuilding index for " << entries.size() << " features.";
+                IndexOracle oracle(this);
+                kg->build(oracle, index_params, NULL);
+                LOG(info) << "Swapping on new index...";
+            }
             indexed_size = entries.size();
             std::swap(kg, kg_index);
             if (kg) {
