@@ -9,7 +9,7 @@ clean:
 include plugin/Makefile.inc
 include Makefile.protocol.inc
 
-CXXFLAGS += -std=c++11 -O3 -g $(EXTRA_CXXFLAGS) -Iplugin -Igrpc -Ithrift -I../3rd/FastEMD -I$(PWD) -DBOOST_LOG_DYN_LINK
+CXXFLAGS += -std=c++11 -O3 -g $(EXTRA_CXXFLAGS) -Iplugin -Igrpc -Ithrift -I../3rd/FastEMD -I$(PWD) $(shell ./check_boost.sh) #-DBOOST_LOG_DYN_LINK
 LDFLAGS += $(EXTRA_LDFLAGS)
 LDLIBS += -lkgraph $(PROTOCOL_LIBS) -lboost_timer -lboost_chrono -lboost_program_options -lboost_log -lboost_log_setup -lboost_thread -lboost_filesystem -lboost_system $(EXTRA_LIBS) -lpthread -lrt -ldl
 
