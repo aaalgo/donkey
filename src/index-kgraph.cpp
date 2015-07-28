@@ -12,6 +12,7 @@ namespace donkey {
             uint32_t tag;
             Feature const *feature;
         };
+        bool linear;
         size_t min_index_size;
         size_t indexed_size;
         vector<Entry> entries;
@@ -52,8 +53,9 @@ namespace donkey {
         KGraph::SearchParams search_params;
         KGraph *kg_index;
     public:
-        KGraphIndex (Config const &config): 
+        KGraphIndex (Config const &config, bool linear_ = false): 
             Index(config),
+            linear(linear_),
             min_index_size(config.get<size_t>("donkey.kgraph.min", 10000)),
             indexed_size(0),
             kg_index(nullptr) {
@@ -134,6 +136,10 @@ namespace donkey {
         }
 
         virtual void rebuild () {   // insert must not happen at this time
+            if (linear) {
+                indexed_size = entries.size();
+                return;
+            }
             if (entries.size() == indexed_size) return;
             KGraph *kg = nullptr;
             if (entries.size() >= min_index_size) {
@@ -152,6 +158,10 @@ namespace donkey {
     };
 
     Index *create_kgraph_index (Config const &config) {
-        return new KGraphIndex(config);
+        return new KGraphIndex(config, false);
+    }
+
+    Index *create_linear_index (Config const &config) {
+        return new KGraphIndex(config, true);
     }
 }

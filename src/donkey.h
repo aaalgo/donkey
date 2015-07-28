@@ -16,6 +16,7 @@
 #include <limits>
 #include <functional>
 #include <boost/thread/locks.hpp>
+#include <boost/filesystem.hpp>
 #include <boost/thread/shared_mutex.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/attributes/named_scope.hpp>
@@ -111,9 +112,10 @@ namespace donkey {
     DEFINE_ERROR(ExternalError, 0x0002);
     DEFINE_ERROR(OutOfMemoryError, 0x0004);
     DEFINE_ERROR(FileSystemError, 0x0008);
-    DEFINE_ERROR(RequestError, 0x0016);
-    DEFINE_ERROR(ConfigError, 0x0032);
-    DEFINE_ERROR(PluginError, 0x0064);
+    DEFINE_ERROR(RequestError, 0x0010);
+    DEFINE_ERROR(ConfigError, 0x0020);
+    DEFINE_ERROR(PluginError, 0x0040);
+    DEFINE_ERROR(PermissionError, 0x0080);
 #undef DEFINE_ERROR
 
     struct Feature;
@@ -156,6 +158,7 @@ namespace donkey {
         float R;
         int32_t hint_K;
         float hint_R;
+        string expect_key;  // for benchmarking only, not included in API
     };
 
     struct SearchResponse {
@@ -211,6 +214,7 @@ namespace donkey {
         virtual void rebuild () = 0;
     };
 
+    Index *create_linear_index (Config const &);
     Index *create_kgraph_index (Config const &);
     Index *create_lsh_index (Config const &);
 
@@ -244,7 +248,14 @@ namespace donkey {
 
     // Feature extractor interface.
     class ExtractorBase {
+        string tmp_model;
+    protected:
+        boost::filesystem::path unique_path () const {
+            return boost::filesystem::unique_path(tmp_model);
+        }
     public:
+        ExtractorBase ();
+        ExtractorBase (Config const &);
         virtual ~ExtractorBase () {}
         virtual void extract_path (string const &path, string const &type, Object *object) const {
             string content;
@@ -284,6 +295,7 @@ namespace donkey {
         string path;           // path to journal file
         ofstream str;               // only opened after recover is invoked
         std::mutex mutex;
+        bool readonly;
 
         struct __attribute__ ((__packed__)) RecordHead {
             uint32_t magic;
@@ -293,12 +305,14 @@ namespace donkey {
         };
 
     public:
-        Journal (string const &path_)
-              : path(path_) {
+        Journal (string const &path_, bool ro = false)
+              : path(path_),
+              readonly(ro)
+        {
         }
 
         ~Journal () {
-            if (str.is_open()) {
+            if ((!readonly) && str.is_open()) {
                 sync();
             }
         }
@@ -344,23 +358,28 @@ namespace donkey {
             }
             while (false);
 
-            {
-                int fd = ::open(path.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
-                if (fd < 0) {
-                    LOG(fatal) << "Cannot open journal file.";
-                    BOOST_VERIFY(0);
+            if (!readonly) {
+                {
+                    int fd = ::open(path.c_str(), O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP);
+                    if (fd < 0) {
+                        LOG(fatal) << "Cannot open journal file.";
+                        BOOST_VERIFY(0);
+                    }
+                    int r = ::ftruncate(fd, off);
+                    if (r) {
+                        LOG(error) << "Cannot truncate journal file, appending anyway.";
+                    }
+                    close(fd);
                 }
-                int r = ::ftruncate(fd, off);
-                if (r) {
-                    LOG(error) << "Cannot truncate journal file, appending anyway.";
-                }
-                close(fd);
+                str.open(path.c_str(), ios::binary | ios::app);
+                BOOST_VERIFY(str.is_open());
             }
-            str.open(path.c_str(), ios::binary | ios::app);
-            BOOST_VERIFY(str.is_open());
+
+            return count;
         }
 
         void append (uint16_t dbid, string const &key, string const &meta, Object const &object) {
+            if (readonly) throw PermissionError("readonly journal");
             BOOST_VERIFY(str.is_open());
             std::lock_guard<std::mutex> lock(mutex); 
             RecordHead head;
@@ -378,6 +397,7 @@ namespace donkey {
         }
 
         void sync () {
+            if (readonly) throw PermissionError("readonly journal");
             BOOST_VERIFY(str.is_open());
             std::lock_guard<std::mutex> lock(mutex); 
             str.flush();
@@ -399,7 +419,7 @@ namespace donkey {
         int default_K;
         float default_R;
     public:
-        DB (Config const &config) 
+        DB (Config const &config, bool ro) 
             : index(nullptr),
             matcher(config),
             default_K(config.get<int>("donkey.defaults.K", 1)),
@@ -409,7 +429,10 @@ namespace donkey {
             if (!isnormal(default_R)) throw ConfigError("invalid defaults.R");
 
             string algo = config.get<string>("donkey.index.algorithm", "lsh");
-            if (algo == "lsh") {
+            if (algo == "linear") {
+                index = create_linear_index(config);
+            }
+            else if (algo == "lsh") {
                 index = create_lsh_index(config);
             }
             else if (algo == "kgraph") {
@@ -541,6 +564,7 @@ namespace donkey {
                 }
             }
         };
+        bool readonly;
         string root;
         dir_checker __dir_checker;
         Journal journal;
@@ -554,16 +578,17 @@ namespace donkey {
         void loadObject (ObjectRequest const &request, Object *object) const; 
 
     public:
-        Server (Config const &config)
-            : root(config.get<string>("donkey.root")),
+        Server (Config const &config, bool ro = false)
+            : readonly(ro),
+            root(config.get<string>("donkey.root")),
             __dir_checker(root),
-            journal(root + "/journal"),
+            journal(root + "/journal", ro),
             dbs(config.get<size_t>("donkey.max_dbs", DEFAULT_MAX_DBS), nullptr),
             xtor(config)
         {
             // create empty dbs
             for (auto &db: dbs) {
-                db = new DB(config);
+                db = new DB(config, readonly);
             }
             // recover journal 
             journal.recover([this](uint16_t dbid, string const &key, string const &meta, Object *object){
@@ -589,6 +614,7 @@ namespace donkey {
         }
 
         void insert (InsertRequest const &request, InsertResponse *response) {
+            if (readonly) throw PermissionError("readonly journal");
             Timer timer(&response->time);
             check_dbid(request.db);
             Object object;
@@ -625,10 +651,12 @@ namespace donkey {
                 dbs[request.db]->reindex();
             }
             else if (request.method == "clear") {
+                if (readonly) throw PermissionError("readonly journal");
                 check_dbid(request.db);
                 dbs[request.db]->clear();
             }
             else if (request.method == "sync") {
+                if (readonly) throw PermissionError("readonly journal");
                 journal.sync();
             }
             response->code = 0;

@@ -7,6 +7,7 @@ using namespace donkey;
 int main (int argc, char *argv[]) {
     string config_path;
     vector<string> overrides;
+    bool readonly;
 
     namespace po = boost::program_options;
     po::options_description desc("Allowed options");
@@ -14,6 +15,7 @@ int main (int argc, char *argv[]) {
         ("help,h", "produce help message.")
         ("config", po::value(&config_path)->default_value("donkey.xml"), "")
         ("override,D", po::value(&overrides), "override configuration.")
+        ("readonly", "")
         ;
 
     po::positional_options_description p;
@@ -31,11 +33,13 @@ int main (int argc, char *argv[]) {
         return 0;
     }
 
+    readonly = vm.count("readonly") > 0;
+
     Config config;
     LoadConfig(config_path, &config);
     OverrideConfig(overrides, &config);
 
-    Server server(config);
+    Server server(config, readonly);
     run_server(config, &server);
 
     return 0;

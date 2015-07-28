@@ -1,6 +1,6 @@
 .PHONY:	all clean
 
-PROGS = server client 
+PROGS = server client stress
 all:	$(PROGS)
 
 clean:
@@ -22,6 +22,7 @@ HEADERS = donkey.h plugin/config.h $(X_HEADERS)
 TAGS = protocol.tag
 SERVER_OBJS = server.o donkey.o index-kgraph.o index-lsh.o $(PROTOCOL_OBJS) $(X_OBJS)
 CLIENT_OBJS = client.o donkey.o index-kgraph.o index-lsh.o $(PROTOCOL_OBJS) $(X_OBJS)
+STRESS_OBJS = stress.o donkey.o $(PROTOCOL_OBJS) $(X_OBJS)
 
 server:	$(TAGS) $(SERVER_OBJS) $(HEADERS)  
 	echo $(EXTRA_SOURCES)
@@ -30,6 +31,9 @@ server:	$(TAGS) $(SERVER_OBJS) $(HEADERS)
 
 client:	$(TAGS) $(CLIENT_OBJS) $(HEADERS)
 	$(CXX) $(LDFLAGS) $(CLIENT_OBJS) $(LDLIBS) -o $@ 
+
+stress:	$(TAGS) $(STRESS_OBJS) $(HEADERS)
+	$(CXX) $(LDFLAGS) $(STRESS_OBJS) $(LDLIBS) -o $@ 
 
 %.o:	%.cpp $(HEADERS)
 	$(CXX) $(CXXFLAGS) -c $*.cpp -o $*.o

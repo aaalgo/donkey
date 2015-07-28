@@ -1,6 +1,5 @@
 #include <sstream>
 #include <boost/property_tree/xml_parser.hpp>
-#include <boost/filesystem.hpp>
 #include <boost/format.hpp>
 /*
 #include <boost/core/null_deleter.hpp>
@@ -113,9 +112,21 @@ namespace donkey {
         if (!isnormal(default_R)) throw ConfigError("invalid defaults.hint_R");
     }
 
+    char const *DEFAULT_MODEL = "%%%%-%%%%-%%%%-%%%%";
+
+    ExtractorBase::ExtractorBase (): tmp_model(DEFAULT_MODEL) {
+    }
+
+    ExtractorBase::ExtractorBase (Config const &config)
+    {
+        string tmp = config.get<string>("donkey.tmp_dir", ".");
+        if (tmp.back() != '/') tmp.push_back('/');
+        tmp_model = tmp + DEFAULT_MODEL;
+    }
+
     void ExtractorBase::extract (string const &content, string const &type, Object *object) const {
         namespace fs = boost::filesystem;
-        fs::path path(fs::unique_path());
+        fs::path path(unique_path());
         WriteFile(path.native(), content);
         extract_path(path.native(), type, object);
         fs::remove(path);
