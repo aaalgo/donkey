@@ -76,7 +76,7 @@ namespace donkey {
         struct L2: public Distance {
             typedef VectorFeature<T,D> feature_type;
             static float apply (feature_type const &v1, feature_type const &v2) {
-                double v = 0.0f;
+                double v = 0.0;
                 for (unsigned i = 0; i < D; ++i) {
                     double a = v1.data[i] - v2.data[i];
                     v += a * a;
