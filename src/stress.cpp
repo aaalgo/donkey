@@ -1,3 +1,4 @@
+#include <signal.h>
 #include <boost/program_options.hpp>
 #include <thread>
 #include <random>
@@ -25,6 +26,44 @@ void load_queries (istream &is, SearchRequest const &proto, bool content, vector
 
 }
 
+class SigHandler {
+
+    static void sigsegv_handler (int) {
+        /*
+        logger->fatal("SIGSEGV, force exit.");
+        logger->fatal(Stack().format());
+        */
+        exit(1);
+    }
+
+    static void handleSigSegV () {
+        struct sigaction sa;
+        memset(&sa, 0, sizeof(struct sigaction));
+        sa.sa_handler = sigsegv_handler;
+        sa.sa_flags = SA_RESETHAND;
+        sigemptyset(&sa.sa_mask);
+        sigaction(SIGSEGV, &sa, NULL);
+    }
+
+public:
+    SigHandler (bool debug = false) {
+    }
+};
+
+bool sigint_flag = false;
+static void sigint_handler (int) {
+    sigint_flag = true;
+}
+void mask_sigint_once () {
+    sigint_flag = false;
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(struct sigaction));
+    sa.sa_handler = sigint_handler;
+    sa.sa_flags = SA_RESETHAND;
+    sigemptyset(&sa.sa_mask);
+    sigaction(SIGINT, &sa, NULL);
+}
+
 class Stress {
     Config config;
     vector<string> servers;
@@ -34,13 +73,15 @@ class Stress {
     unsigned threads;
     unsigned count;
     unsigned sleep;  // ms
+    bool keepalive;   
     bool once;
 
     void worker (unsigned tid, unsigned *next, unsigned *cnt, unsigned *err, unsigned *miss, unsigned *load) {
         default_random_engine rng(tid);
         bool done = false;
         unsigned server_index = tid % servers.size();
-        while (!done) {
+        mask_sigint_once();
+        while (!done && !sigint_flag) {
             Service *client = nullptr;
             Config local_config = config;
             if (servers.size()) {
@@ -63,7 +104,7 @@ class Stress {
             BOOST_VERIFY(client);
             uniform_int_distribution<unsigned> query_dist(0, reqs.size()-1);
             try {
-                for (;;) {
+                do {
                     unsigned n = __sync_fetch_and_add(next, 1);
                     if (count && (n >= count)) {
                         done = true;
@@ -95,10 +136,12 @@ class Stress {
                             __sync_fetch_and_add(miss, 1);
                         }
                     }
+                    if (sigint_flag) break;
                     if (sleep) {
                         this_thread::sleep_for(chrono::milliseconds(sleep));
+                        if (sigint_flag) break;
                     }
-                }
+                } while (keepalive);
             } catch (exception& tx) {
                 __sync_fetch_and_add(err, 1);
                 cout << "ERROR: " << tx.what() << endl;
@@ -109,14 +152,15 @@ class Stress {
 public:
     Stress (Config const &config_,
             vector<string> servers_,
-            vector<SearchRequest> &&reqs_, bool once_)
+            vector<SearchRequest> &&reqs_, bool once_, bool keep = true)
         : config(config_),
         servers(servers_),
         reqs(reqs_),
         threads(config.get<unsigned>("donkey.stress.threads", 1)),
         count(config.get<unsigned>("donkey.stress.count", 0)),
         sleep(config.get<unsigned>("donkey.stress.sleep", 0)),
-        once(once_)
+        once(once_),
+        keepalive(keep)
     {
         if (once) {
             if (count == 0 || count > reqs.size()) {
@@ -149,7 +193,7 @@ public:
         unsigned oldmiss = miss;
 
         unsigned sec = 1;
-        while ((count == 0) || (cnt < count)) {
+        while (((count == 0) || (cnt < count)) && (!sigint_flag)) {
             this_thread::sleep_for(chrono::seconds(sec));
             unsigned c = cnt;
             unsigned e = err;
@@ -194,6 +238,7 @@ int main (int argc, char *argv[]) {
     unsigned count;
     bool content;
     bool once;
+    bool keepalive;
     SearchRequest search;
 
     namespace po = boost::program_options;
@@ -216,6 +261,7 @@ int main (int argc, char *argv[]) {
         ("hint_K", po::value(&search.hint_K)->default_value(-1), "")
         ("hint_R", po::value(&search.hint_R)->default_value(NAN), "")
         ("once", "")
+        ("no-keepalive", "")
         ;
 
     po::positional_options_description p;
@@ -236,6 +282,8 @@ int main (int argc, char *argv[]) {
     search.raw = !vm.count("feature");
     content = vm.count("content");
     once = vm.count("once");
+    keepalive = vm.count("no-keepalive") == 0;
+
 
     Config config;
     LoadConfig(config_path, &config);
@@ -264,7 +312,7 @@ int main (int argc, char *argv[]) {
         load_queries(cin, search, content, &reqs);
     }
 
-    Stress stress(config, servers, std::move(reqs), once);
+    Stress stress(config, servers, std::move(reqs), once, keepalive);
     stress.run();
 
     return 0;
