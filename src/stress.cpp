@@ -127,6 +127,11 @@ public:
         if ((count > 0) && (threads > count)) {
             threads = count;
         }
+        if (servers.empty()) {
+            string host = config.get<string>("donkey.thrift.client.server", "localhost");
+            string port = config.get<string>("donkey.thrift.client.port", "50052");
+            servers.push_back(host + ":" + port);
+        }
     }
     void run () {
         thread th[threads];

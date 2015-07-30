@@ -20,6 +20,7 @@
 #include <boost/thread/shared_mutex.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/attributes/named_scope.hpp>
+#define BOOST_SPIRIT_THREADSAFE
 #include <boost/property_tree/ptree.hpp>
 #include <boost/timer/timer.hpp>
 #include <boost/assert.hpp>
