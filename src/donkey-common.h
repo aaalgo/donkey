@@ -51,7 +51,7 @@ namespace donkey {
              }
              v /= (std::sqrt(m1) * std::sqrt(m2));
              if(std::isnormal(v)) return v;
-             else return 1.0f;
+             else return -1.0f;
         }
     };
 
