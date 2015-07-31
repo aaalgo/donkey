@@ -21,7 +21,7 @@ using namespace apache::thrift::concurrency;
 using namespace apache::thrift::server;
 
 class DonkeyHandler : virtual public api::DonkeyIf {
-    Server *server;
+    Service *server;
 
     void protect (function<void()> const &callback) {
         try {
@@ -47,7 +47,7 @@ class DonkeyHandler : virtual public api::DonkeyIf {
     }
 
  public:
-  DonkeyHandler(Server *s): server(s) {
+  DonkeyHandler(Service *s): server(s) {
     // Your initialization goes here
   }
 
@@ -118,7 +118,7 @@ class DonkeyHandler : virtual public api::DonkeyIf {
 };
 
 
-void run_server (Config const &config, Server *svr) {
+void run_server (Config const &config, Service *svr) {
     LOG(info) << "Starting the server...";
     boost::shared_ptr<TProtocolFactory> apiFactory(new TBinaryProtocolFactory());
     boost::shared_ptr<DonkeyHandler> handler(new DonkeyHandler(svr));
@@ -139,6 +139,7 @@ void run_server (Config const &config, Server *svr) {
 }
 
 class DonkeyClientImpl: public Service {
+    NetworkAddress address;
     mutable boost::shared_ptr<TTransport> socket;
     mutable boost::shared_ptr<TTransport> transport;
     mutable boost::shared_ptr<TProtocol> protocol;
@@ -170,11 +171,21 @@ class DonkeyClientImpl: public Service {
 
 public:
     DonkeyClientImpl (Config const &config)
-        :socket(new TSocket(config.get<string>("donkey.thrift.client.server", "localhost"), config.get<int>("donkey.thrift.client.port", 50052))),
+        : address(config.get<string>("donkey.thrift.client.server", "localhost")),
+        socket(new TSocket(address.host("localhost"), address.port(50052))),
         transport(new TBufferedTransport(socket)),
         protocol(new TBinaryProtocol(transport)),
         client(protocol)
+    {
+        transport->open();
+    }
 
+    DonkeyClientImpl (string const &addr)
+        : address(addr),
+        socket(new TSocket(address.host("localhost"), address.port(50052))),
+        transport(new TBufferedTransport(socket)),
+        protocol(new TBinaryProtocol(transport)),
+        client(protocol)
     {
         transport->open();
     }
@@ -183,7 +194,7 @@ public:
         transport->close();
     }
 
-    void ping () const {
+    void ping () {
         api::PingRequest req;
         api::PingResponse resp;
         client.ping(resp, req);
@@ -207,7 +218,7 @@ public:
         });
     }
 
-    void search (SearchRequest const &request, SearchResponse *response) const {
+    void search (SearchRequest const &request, SearchResponse *response) {
         protect([this, &response, request](){
             api::SearchRequest req;
             api::SearchResponse resp;
@@ -251,6 +262,10 @@ public:
 
 Service *make_client (Config const &config) {
     return new DonkeyClientImpl(config);
+}
+
+Service *make_client (string const &address) {
+    return new DonkeyClientImpl(address);
 }
 
 

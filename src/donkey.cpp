@@ -1,17 +1,7 @@
 #include <sstream>
+#define BOOST_SPIRIT_THREADSAFE
 #include <boost/property_tree/xml_parser.hpp>
-#include <boost/format.hpp>
-/*
-#include <boost/core/null_deleter.hpp>
-#include <boost/log/utility/setup/common_attributes.hpp>
-#include <boost/log/sinks/sync_frontend.hpp>
-#include <boost/log/sinks/text_ostream_backend.hpp>
-#include <boost/log/utility/setup/common_attributes.hpp>
-#include <boost/log/attributes/value_extraction.hpp>
-#include <boost/log/expressions.hpp>
-#include <boost/log/support/date_time.hpp>
-#include "console.h"
-*/
+#include <boost/lexical_cast.hpp>
 #include "donkey.h"
 
 namespace donkey {
@@ -36,72 +26,6 @@ namespace donkey {
             }
             config->put<std::string>(D.substr(0, o), D.substr(o + 1));
         }
-    }
-
-    /*
-    boost::log::formatting_ostream& operator<<
-    (
-        boost::log::formatting_ostream& strm,
-        boost::log::to_log_manip<boost::log::trivial::severity_level, color_tag> const& manip
-    )
-    {
-        using namespace console;
-        static string const colors[] = {
-            color(Reset, Blue, Black),
-            color(Reset, Green, Black),
-            color(Reset, White, Black),
-            color(Reset, Yellow, Black),
-            color(Reset, Red, Black),
-            color(Bright, White, Red)
-        };
-        boost::log::trivial::severity_level level = manip.get();
-        strm << colors[level];
-        return strm;
-    }
-    */
-
-    void setup_logging (Config const &config) {
-        /*
-        namespace attrs = boost::log::attributes;
-        namespace sinks = boost::log::sinks;
-        namespace expr = boost::log::expressions;
-        namespace keywords = boost::log::keywords;
-        static ofstream log_stream;
-        logging::add_common_attributes();
-        typedef sinks::synchronous_sink< sinks::text_ostream_backend > text_sink;
-        boost::shared_ptr< text_sink > sink = boost::make_shared< text_sink >();
-        bool istty = false;
-        if (path.empty()) {
-            boost::shared_ptr<std::ostream> stream(&std::clog, boost::null_deleter());
-            sink->locked_backend()->add_stream(stream);
-            if (::isatty(2)) {
-                istty = true;
-            }
-        }
-        else {
-            log_stream.open(path.c_str());
-            if (!log_stream) throw FileSystemError(format("cannot open log file %s", path));
-            boost::shared_ptr<std::ostream> stream(&log_stream, boost::null_deleter());
-            sink->locked_backend()->add_stream(stream);
-        }
-        if (istty) {
-            sink->set_formatter(expr::stream
-                << expr::attr<logging::trivial::severity_level, color_tag>("Severity")
-                << expr::format_date_time<boost::posix_time::ptime>("TimeStamp", "%Y:%m:%d %H:%M:%S.%f")
-                << ' ' << expr::attr<logging::trivial::severity_level >("Severity")
-                << ' ' << expr::format_named_scope("Scope", keywords::format = "%n", keywords::iteration = expr::reverse) 
-                << ' ' << expr::smessage
-                << console::reset);
-        }
-        else {
-            sink->set_formatter(expr::stream
-                << expr::format_date_time<boost::posix_time::ptime>("TimeStamp", "%Y:%m:%d %H:%M:%S.%f")
-                << ' ' << expr::attr<logging::trivial::severity_level >("Severity")
-                << ' ' << expr::format_named_scope("Scope", keywords::format = "%n", keywords::iteration = expr::reverse) 
-                << ' ' << expr::smessage);
-        }
-        logging::core::get()->add_sink(sink);
-        */
     }
 
     Index::Index (Config const &config)
@@ -150,7 +74,7 @@ namespace donkey {
             if (test_url(request.url)) {
                 is_url = true;
                 path = fs::unique_path();
-                string cmd = (boost::format("wget -O '%s' '%s'") % path.native() % request.url).str();
+                string cmd(format("wget -O '%s' '%s'", path.native(), request.url));
                 int r = ::system(cmd.c_str());
                 if (r != 0) {
                     throw ExternalError(cmd);
@@ -186,6 +110,17 @@ namespace donkey {
         
     }
 
+    NetworkAddress::NetworkAddress (string const &server) {
+        auto off = server.find(':');
+        if (off == server.npos || off + 1 >= server.size()) {
+            h = server;
+            p = -1;
+        }
+        else {
+            h = server.substr(0, off);
+            p = boost::lexical_cast<int>(server.substr(off+1));
+        }
+    }
 
 }
     

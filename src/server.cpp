@@ -39,8 +39,10 @@ int main (int argc, char *argv[]) {
     LoadConfig(config_path, &config);
     OverrideConfig(overrides, &config);
 
+    setup_logging(config);
     Server server(config, readonly);
     run_server(config, &server);
+    cleanup_logging();
 
     return 0;
 }

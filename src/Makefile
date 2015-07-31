@@ -1,6 +1,6 @@
 .PHONY:	all clean
 
-PROGS = server client stress
+PROGS = server client proxy stress
 all:	$(PROGS)
 
 clean:
@@ -20,9 +20,10 @@ X_OBJS = $(patsubst %.c, plugin/%.o, $(X_OBJS1))
 HEADERS = donkey.h plugin/config.h $(X_HEADERS) 
 
 TAGS = protocol.tag
-SERVER_OBJS = server.o donkey.o index-kgraph.o index-lsh.o $(PROTOCOL_OBJS) $(X_OBJS)
-CLIENT_OBJS = client.o donkey.o index-kgraph.o index-lsh.o $(PROTOCOL_OBJS) $(X_OBJS)
-STRESS_OBJS = stress.o donkey.o $(PROTOCOL_OBJS) $(X_OBJS)
+SERVER_OBJS = server.o donkey.o logging.o index-kgraph.o index-lsh.o $(PROTOCOL_OBJS) $(X_OBJS)
+CLIENT_OBJS = client.o donkey.o logging.o index-kgraph.o index-lsh.o $(PROTOCOL_OBJS) $(X_OBJS)
+PROXY_OBJS = proxy.o donkey.o logging.o $(PROTOCOL_OBJS) $(X_OBJS)
+STRESS_OBJS = stress.o donkey.o logging.o $(PROTOCOL_OBJS) $(X_OBJS)
 
 server:	$(TAGS) $(SERVER_OBJS) $(HEADERS)  
 	echo $(EXTRA_SOURCES)
@@ -34,6 +35,9 @@ client:	$(TAGS) $(CLIENT_OBJS) $(HEADERS)
 
 stress:	$(TAGS) $(STRESS_OBJS) $(HEADERS)
 	$(CXX) $(LDFLAGS) $(STRESS_OBJS) $(LDLIBS) -o $@ 
+
+proxy:	$(TAGS) $(PROXY_OBJS) $(HEADERS)
+	$(CXX) $(LDFLAGS) $(PROXY_OBJS) $(LDLIBS) -o $@ 
 
 %.o:	%.cpp $(HEADERS)
 	$(CXX) $(CXXFLAGS) -c $*.cpp -o $*.o

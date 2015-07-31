@@ -16,6 +16,7 @@
 #include <limits>
 #include <functional>
 #include <boost/thread/locks.hpp>
+#include <boost/format.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/thread/shared_mutex.hpp>
 #include <boost/log/trivial.hpp>
@@ -65,6 +66,23 @@ namespace donkey {
 #define LOG(x) BOOST_LOG_TRIVIAL(x)
     namespace logging = boost::log;
     void setup_logging (Config const &);
+    void cleanup_logging ();
+
+
+    static inline void format_helper (boost::format &) {
+    }
+    template <typename T, typename... Args>
+    void format_helper (boost::format &fmt, T const &value, Args... args) {
+        fmt % value;
+        format_helper(fmt, args...);
+    }
+    // format用法类似sprintf，直接返回字符串
+    template <typename... Args>
+    string format (char const *fmt, Args... args) {
+        boost::format f(fmt);
+        format_helper(f, args...);
+        return f.str();
+    }
 
     //void DumpStack ();
 
@@ -117,6 +135,8 @@ namespace donkey {
     DEFINE_ERROR(ConfigError, 0x0020);
     DEFINE_ERROR(PluginError, 0x0040);
     DEFINE_ERROR(PermissionError, 0x0080);
+    DEFINE_ERROR(NotImplementedError, 0x0100);
+    DEFINE_ERROR(ProxyBackendError, 0x0200);
 #undef DEFINE_ERROR
 
     struct Feature;
@@ -152,6 +172,8 @@ namespace donkey {
                             // one and only one of object and content may be set
         string type;        // passed to feature extraction plugin for extra info
     };
+
+    void log_object_request (ObjectRequest const &request, char const *type);
 
     struct SearchRequest: public ObjectRequest {
         uint16_t db;
@@ -548,9 +570,9 @@ namespace donkey {
     class Service {
     public:
         virtual ~Service () = default;
-        virtual void ping () const = 0;
+        virtual void ping () = 0;
         virtual void insert (InsertRequest const &request, InsertResponse *response) = 0;
-        virtual void search (SearchRequest const &request, SearchResponse *response) const = 0;
+        virtual void search (SearchRequest const &request, SearchResponse *response) = 0;
         virtual void misc (MiscRequest const &request, MiscResponse *response) = 0;
     };
 
@@ -566,6 +588,7 @@ namespace donkey {
             }
         };
         bool readonly;
+        bool log_object;
         string root;
         dir_checker __dir_checker;
         Journal journal;
@@ -581,6 +604,7 @@ namespace donkey {
     public:
         Server (Config const &config, bool ro = false)
             : readonly(ro),
+            log_object(config.get<int>("donkey.server.log_object", 0)),
             root(config.get<string>("donkey.root")),
             __dir_checker(root),
             journal(root + "/journal", ro),
@@ -611,12 +635,13 @@ namespace donkey {
             }
         }
 
-        void ping () const {
+        void ping () {
         }
 
         void insert (InsertRequest const &request, InsertResponse *response) {
             if (readonly) throw PermissionError("readonly journal");
             Timer timer(&response->time);
+            if (log_object) log_object_request(request, "INSERT");
             check_dbid(request.db);
             Object object;
             {
@@ -634,8 +659,9 @@ namespace donkey {
             }
         }
 
-        void search (SearchRequest const &request, SearchResponse *response) const {
+        void search (SearchRequest const &request, SearchResponse *response) {
             Timer timer(&response->time);
+            if (log_object) log_object_request(request, "SEARCH");
             check_dbid(request.db);
             Object object;
             {
@@ -664,10 +690,33 @@ namespace donkey {
         }
     };
 
-    void run_server (Config const &, Server *);
+    void run_server (Config const &, Service *);
+
+    class NetworkAddress {
+        string h;   // empty for nothing 
+        int p;      // -1 for nothing
+    public:
+        NetworkAddress (string const &);
+        string host () const {
+            if (h.empty()) throw InternalError("no host");
+            return h;
+        }
+        int port () const {
+            if (p <= 0) throw InternalError("no port");
+            return p;
+        }
+        string host (string const &def) {
+            if (h.size()) return h;
+            return def;
+        }
+        unsigned short port (unsigned short def) const {
+            if (p > 0) return p;
+            return def;
+        }
+    };
 
     Service *make_client (Config const &);
-
+    Service *make_client (string const &address);
 }
 
 #endif

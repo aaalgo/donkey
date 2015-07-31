@@ -83,24 +83,13 @@ class Stress {
         mask_sigint_once();
         while (!done && !sigint_flag) {
             Service *client = nullptr;
-            Config local_config = config;
             if (servers.size()) {
                 string server = servers[server_index];
-                string host;
-                int port;
-                auto off = server.find(':');
-                if (off == server.npos) {
-                    host = server;
-                    port = 50052;
-                }
-                else {
-                    host = server.substr(0, off);
-                    port = boost::lexical_cast<int>(server.substr(off+1));
-                }
-                local_config.put<string>("donkey.thrift.client.server", host);
-                local_config.put<int>("donkey.thrift.client.port", port);
+                client = make_client(servers[server_index]);
             }
-            client = make_client(local_config);
+            else {
+                client = make_client(config);
+            }
             BOOST_VERIFY(client);
             uniform_int_distribution<unsigned> query_dist(0, reqs.size()-1);
             try {
@@ -172,9 +161,8 @@ public:
             threads = count;
         }
         if (servers.empty()) {
-            string host = config.get<string>("donkey.thrift.client.server", "localhost");
-            string port = config.get<string>("donkey.thrift.client.port", "50052");
-            servers.push_back(host + ":" + port);
+            string server = config.get<string>("donkey.thrift.client.server", "localhost:50052");
+            servers.push_back(server);
         }
     }
     void run () {
