@@ -6,7 +6,6 @@
 #include <sstream>
 #include <stdexcept>
 #include <boost/format.hpp>
-#include <boost/core/null_deleter.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/attributes/named_scope.hpp>
 #include <boost/log/sinks/sync_frontend.hpp>
@@ -70,6 +69,17 @@ namespace donkey {
     struct color_tag;
     namespace logging = boost::log;
 
+    struct null_deleter
+    {
+        //! Function object result type
+        typedef void result_type;
+        /*!
+         * Does nothing
+         */
+        template< typename T >
+        void operator() (T*) const {}
+    };
+
     boost::log::formatting_ostream& operator<<
     (
         boost::log::formatting_ostream& strm,
@@ -106,7 +116,7 @@ namespace donkey {
         if (path.empty()) {
             typedef sinks::synchronous_sink< sinks::text_ostream_backend > text_sink;
             boost::shared_ptr<text_sink> s = boost::make_shared< text_sink >();
-            boost::shared_ptr<std::ostream> stream(&std::clog, boost::null_deleter());
+            boost::shared_ptr<std::ostream> stream(&std::clog, null_deleter());
             s->locked_backend()->add_stream(stream);
             sink = s;
             if (::isatty(2)) {
