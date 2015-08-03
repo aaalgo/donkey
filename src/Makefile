@@ -7,7 +7,7 @@ clean:
 	rm -rf *.o $(PROGS) grpc thrift *.tag
 
 include plugin/Makefile.inc
-include Makefile.protocol.inc
+include Makefile.thrift.inc
 
 CXXFLAGS += -std=c++11 -O3 -g $(EXTRA_CXXFLAGS) -Iplugin -Igrpc -Ithrift -I../3rd/FastEMD -I$(PWD) $(shell ./check_boost.sh) #-DBOOST_LOG_DYN_LINK
 LDFLAGS += $(EXTRA_LDFLAGS)
