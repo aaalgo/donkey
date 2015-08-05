@@ -43,44 +43,62 @@ all kinds of data.
 - It has limited flexibility.  Although a donkey server can manage multiple object
 collections, all have to be of the same data type.
 
-
-
 2. Workflow
 
 In order to generate a search engine for a specific data type, the user has to create a
-sub-directory under the plugin directory, and provide at least three files:
-- config.sh: specifying the configuration.
-- object.proto: define the data types for feature and meta data.
-- a C++ file implements the feature extraction, similarity search and ranking
-functions.
+directory and provide at least two files:
+- config.h: specifying the configuration.
+- Makefile
+- (Optional) extra C++ and C source files.
 
-An example is provided under the name qbic.  To generate the search engine for qbic,
+Examples can be found in the "examples" directory.
+
+
+To generate the search engine for the "image" example, 
 run:
 
-$ ./heehaw qbic
+$ cd examples/image
+$ make
 
-And a server named donkey-qbic (defined in qbic/config.sh) is generated.
+The server and client binaries will be generated.
 
 The server can be configured with a configuration file, which controls the server behavior
 like port, parallelism, logging, etc.  Once the server is up and running, the user can
-use the client-side API to submit search requests, and inject data objects into the
-search engine.
+use the client-side API or the client binary to submit search requests, and inject data objects
+into the search engine.
 
 
 3. API
 
-DONKEY provides two options for server API, http and gRPC, which are configurable in plugin.
+DONKEY supports Thrift API.  Other protocols like gRPC and HTTP are planned.
 
 3.1. Thrift
 
 
 4. Plugin Development Guide
 
-4.1 Configuration
+4.1 Makefile
+
+Following is a minimal sample Makefile
+
+
+DONKEY_HOME=$(HOME)/src/donkey	# wherever donkey home is
+
+EXTRA_CXXFLAGS = -I..	# add extra flags
+EXTRA_LDFLAGS = -L..
+EXTRA_LIBS = -lz	# add extra libs
+
+EXTRA_C_SOURCES = xxx.c
+EXTRA_SOURCES = xxx.cpp
+
+include $(DONKEY_HOME)/src/Makefile.common
+
+
+What's mandatory is to define DONKEY_HOME, and include the Makefile.common file.
+
 
 4.2 Object Definition
 
 4.3 C++ functions
-
 
 
