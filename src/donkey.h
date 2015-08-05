@@ -290,7 +290,7 @@ namespace donkey {
 }
 
 // data-type-specific configuration
-#include "plugin/config.h"
+#include "config.h"
 
 namespace donkey {
 
