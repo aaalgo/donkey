@@ -71,10 +71,7 @@ search engine.
 
 DONKEY provides two options for server API, http and gRPC, which are configurable in plugin.
 
-3.1. HTTP
-
-3.2. gRPC
-
+3.1. Thrift
 
 
 4. Plugin Development Guide
