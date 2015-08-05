@@ -9,15 +9,16 @@ PROTOCOL=$2
 if [ -z "$PLUGIN" ]
 then
 	echo usage:
-	echo './heehaw <plugin> [protocol]'
+	echo './heehaw <plugin>'
 	echo 'plugin: qbic'
-	echo 'protocol: thrift (default), grpc'
 	exit 1
 fi
 
 if [ -z "$PROTOCOL" ]
 then
 	PROTOCOL=thrift
+else
+	echo "Multiple protocols are not supported.  We currently support thrift only."
 fi
 
 PLUGIN_DIR=plugins/$PLUGIN

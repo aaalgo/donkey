@@ -6,5 +6,5 @@ using namespace donkey;
 
 int main () {
     cout << "Feature: " << sizeof(Feature) << endl;
-    cout << "Meta: " << sizeof(Meta) << endl;
+    //cout << "Meta: " << sizeof(Meta) << endl;
 }
