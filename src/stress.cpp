@@ -280,6 +280,8 @@ int main (int argc, char *argv[]) {
     if (vm.count("threads")) config.put("donkey.stress.threads", threads);
     if (vm.count("count")) config.put("donkey.stress.count", count);
 
+    setup_logging(config);
+
     // load servers from file
     if (server_list_path.size()) {
         string line;
@@ -302,6 +304,7 @@ int main (int argc, char *argv[]) {
 
     Stress stress(config, servers, std::move(reqs), once, keepalive);
     stress.run();
+    cleanup_logging();
 
     return 0;
 }

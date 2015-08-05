@@ -61,6 +61,8 @@ int main (int argc, char *argv[]) {
     LoadConfig(config_path, &config);
     OverrideConfig(overrides, &config);
 
+    setup_logging(config);
+
     Service *client = nullptr;
     if (vm.count("embed")) {
         client = new Server(config);
@@ -166,5 +168,6 @@ int main (int argc, char *argv[]) {
         cout << "text: " << resp.text << endl;
     }
     delete client;
+    cleanup_logging();
     return 0;
 }

@@ -150,9 +150,11 @@ int main (int argc, char *argv[]) {
     Config config;
     LoadConfig(config_path, &config);
     OverrideConfig(overrides, &config);
+    setup_logging(config);
 
     Proxy proxy(config, backends_path);
     run_server(config, &proxy);
+    cleanup_logging();
 
     return 0;
 }

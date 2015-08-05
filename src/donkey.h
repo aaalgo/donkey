@@ -59,6 +59,7 @@ namespace donkey {
     typedef boost::property_tree::ptree Config;
 
     void LoadConfig (string const &path, Config *);
+    void SaveConfig (string const &path, Config const &);
     // we allow overriding configuration options in the form of "KEY=VALUE"
     void OverrideConfig (std::vector<std::string> const &overrides, Config *);
 

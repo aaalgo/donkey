@@ -17,6 +17,10 @@ namespace donkey {
         }
     }
 
+    void SaveConfig (string const &path, Config const &config) {
+        boost::property_tree::write_xml(path, config);
+    }
+
     void OverrideConfig (std::vector<std::string> const &overrides, Config *config) {
         for (std::string const &D: overrides) {
             size_t o = D.find("=");
