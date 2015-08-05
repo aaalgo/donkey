@@ -1,6 +1,9 @@
 #!/bin/bash
 
-echo heehaw
+echo We have switched to a new building system.
+echo Say if you want to build examples/image,
+echo just cd examples/image and type make
+exit
 
 
 PLUGIN=$1
