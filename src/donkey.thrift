@@ -1,4 +1,5 @@
 namespace cpp donkey.api
+namespace java donkey.api
 
 struct PingRequest {
 }
@@ -60,15 +61,15 @@ struct MiscResponse {
     2:required string text;
 }
 
-exception Exception {
+exception DonkeyException {
       1: i32 what;
       2: string why;
 }
 
 service Donkey {
     PingResponse ping (1:required PingRequest request);
-    SearchResponse search (1:required SearchRequest request) throws (1:Exception e);
-    InsertResponse insert (1:required InsertRequest request) throws (1:Exception e);
-    MiscResponse misc (1:required MiscRequest request) throws (1:Exception e);
+    SearchResponse search (1:required SearchRequest request) throws (1:DonkeyException e);
+    InsertResponse insert (1:required InsertRequest request) throws (1:DonkeyException e);
+    MiscResponse misc (1:required MiscRequest request) throws (1:DonkeyException e);
 }
 

@@ -1,3 +1,5 @@
+#include <sys/time.h>
+#include <sys/resource.h>
 #include <boost/program_options.hpp>
 #include "donkey.h"
 
@@ -8,6 +10,7 @@ int main (int argc, char *argv[]) {
     string config_path;
     vector<string> overrides;
     bool readonly;
+    int nice;
 
     namespace po = boost::program_options;
     po::options_description desc("Allowed options");
@@ -16,6 +19,7 @@ int main (int argc, char *argv[]) {
         ("config", po::value(&config_path)->default_value("donkey.xml"), "")
         ("override,D", po::value(&overrides), "override configuration.")
         ("readonly", "")
+        ("nice", po::value(&nice)->default_value(10), "do not lower priority")
         ;
 
     po::positional_options_description p;
@@ -41,6 +45,11 @@ int main (int argc, char *argv[]) {
 
     setup_logging(config);
     Server server(config, readonly);
+
+    if (nice > 0) {
+        // pid 0 means the calling process, 
+        setpriority(PRIO_PROCESS, 0, nice);
+    }
     run_server(config, &server);
     cleanup_logging();
 

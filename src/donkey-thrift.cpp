@@ -28,19 +28,19 @@ class DonkeyHandler : virtual public api::DonkeyIf {
             callback();
         }
         catch (Error const &e) {
-            api::Exception ae;
+            api::DonkeyException ae;
             ae.what = e.code();
             ae.why = e.what();
             throw ae;
         }
         catch (std::exception const &e) {
-            api::Exception ae;
+            api::DonkeyException ae;
             ae.what = ErrorCode_Unknown;
             ae.why = e.what();
             throw ae;
         }
         catch (...) {
-            api::Exception ae;
+            api::DonkeyException ae;
             ae.what = ErrorCode_Unknown;
             throw ae;
         }
@@ -149,7 +149,7 @@ class DonkeyClientImpl: public Service {
         try {
             callback();
         }
-        catch (api::Exception const &ae) {
+        catch (api::DonkeyException const &ae) {
             throw Error(ae.why, ae.what);
         }
         catch (...) {
@@ -161,7 +161,7 @@ class DonkeyClientImpl: public Service {
         try {
             callback();
         }
-        catch (api::Exception const &ae) {
+        catch (api::DonkeyException const &ae) {
             throw Error(ae.why, ae.what);
         }
         catch (...) {

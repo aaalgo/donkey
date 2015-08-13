@@ -218,7 +218,7 @@ namespace donkey {
         TrivialMatcher (Config const &config) {
         }
 
-        float apply (object_type const &query, Candidate const &cand) const {
+        float apply (object_type const &query, Candidate const &cand, string *details) const {
             BOOST_VERIFY(cand.hints.size());
             return cand.hints[0].value;
         }
@@ -235,7 +235,7 @@ namespace donkey {
         {
         }
 
-        float apply (object_type const &query, Candidate const &cand) const {
+        float apply (object_type const &query, Candidate const &cand, string *details) const {
             BOOST_VERIFY(cand.hints.size());
             unsigned v = 0;
             for (auto const &h: cand.hints) {

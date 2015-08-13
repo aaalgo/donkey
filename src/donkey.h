@@ -519,7 +519,8 @@ namespace donkey {
                     unsigned id = pair.first;
                     Candidate &cand = pair.second;
                     cand.object = &records[id]->object;
-                    float score = matcher.apply(object, cand);
+                    string details;
+                    float score = matcher.apply(object, cand, &details);
                     bool good = false;
                     if (Matcher::POLARITY >= 0) {
                         good = score >= R;
@@ -532,6 +533,7 @@ namespace donkey {
                         hit.key = records[id]->key;
                         hit.meta = records[id]->meta;
                         hit.score = score;
+                        hit.details.swap(details);
                         response->hits.push_back(hit);
                     }
                 }

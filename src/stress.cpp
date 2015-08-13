@@ -1,3 +1,4 @@
+#include <sys/time.h>
 #include <signal.h>
 #include <boost/program_options.hpp>
 #include <thread>
@@ -76,23 +77,26 @@ class Stress {
     bool keepalive;   
     bool once;
 
-    void worker (unsigned tid, unsigned *next, unsigned *cnt, unsigned *err, unsigned *miss, unsigned *load) {
+    void worker (unsigned tid, unsigned *next, unsigned *cnt, unsigned *err, unsigned *miss, int *resp, unsigned *load) {
         default_random_engine rng(tid);
         bool done = false;
         unsigned server_index = tid % servers.size();
         mask_sigint_once();
         while (!done && !sigint_flag) {
             Service *client = nullptr;
-            if (servers.size()) {
-                string server = servers[server_index];
-                client = make_client(servers[server_index]);
-            }
-            else {
-                client = make_client(config);
-            }
-            BOOST_VERIFY(client);
-            uniform_int_distribution<unsigned> query_dist(0, reqs.size()-1);
+            int query_in_this_loop = 0;
+            struct timeval start, end;
+            gettimeofday(&start, NULL);
             try {
+                if (servers.size()) {
+                    string server = servers[server_index];
+                    client = make_client(servers[server_index]);
+                }
+                else {
+                    client = make_client(config);
+                }
+                BOOST_VERIFY(client);
+                uniform_int_distribution<unsigned> query_dist(0, reqs.size()-1);
                 do {
                     unsigned n = __sync_fetch_and_add(next, 1);
                     if (count && (n >= count)) {
@@ -111,7 +115,15 @@ class Stress {
                         presp = &dummy;
                     }
                     client->search(*preq, presp);
+                    ++query_in_this_loop;
+                    gettimeofday(&end, NULL);
+                    // calculate time
+                    int sdiff = end.tv_sec - start.tv_sec;
+                    int64_t usdiff = end.tv_usec - start.tv_usec;
+                    int msdiff = sdiff * 1000 + (usdiff + 999)/ 1000;
+                    start = end;
                     __sync_fetch_and_add(cnt, 1);
+                    __sync_fetch_and_add(resp, msdiff);
                     __sync_fetch_and_add(&load[server_index], 1);
                     {
                         bool hit = false;
@@ -135,9 +147,13 @@ class Stress {
                 __sync_fetch_and_add(err, 1);
                 cout << "ERROR: " << tx.what() << endl;
             }
+            if (query_in_this_loop == 0) {  // no query done, likely thrift failure
+                                            // wait one sec before next query
+                this_thread::sleep_for(chrono::milliseconds(1000));
+            }
             delete client;
         }
-    };
+    }
 public:
     Stress (Config const &config_,
             vector<string> servers_,
@@ -172,13 +188,15 @@ public:
             load.push_back(0);
         }
         unsigned next = 0, cnt = 0, err = 0, miss = 0;
+        int resp = 0;
         unsigned *pload = &load[0];
         for (unsigned i = 0; i < threads; ++i) {
-            th[i] = thread([this,i,&next, &cnt,&err,&miss, pload](){this->worker(i, &next, &cnt, &err, &miss, pload);});
+            th[i] = thread([this,i,&next, &cnt,&err,&miss, &resp, pload](){this->worker(i, &next, &cnt, &err, &miss, &resp, pload);});
         }
         unsigned oldcnt = cnt;
         unsigned olderr = err;
         unsigned oldmiss = miss;
+        int oldresp = resp;
 
         unsigned sec = 1;
         while (((count == 0) || (cnt < count)) && (!sigint_flag)) {
@@ -186,12 +204,15 @@ public:
             unsigned c = cnt;
             unsigned e = err;
             unsigned m = miss;
+            int r = resp;
             cout << float(c - oldcnt) / sec << '/' << c
                 << '\t' << float(e - olderr) / sec << '/' << e
-                << '\t' << float(m - oldmiss) / sec << '/' << m << endl;
+                << '\t' << float(m - oldmiss) / sec << '/' << m
+                << '\t' << float(r - oldresp) / (c - oldcnt) << "ms" << endl;
             oldcnt = c;
             olderr = e;
             oldmiss = m;
+            oldresp = r;
         }
         for (auto &t: th) {
             t.join();
