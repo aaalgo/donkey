@@ -1,14 +1,49 @@
+#include <omp.h>
 #include <boost/program_options.hpp>
+#include <boost/lexical_cast.hpp>
 #include "donkey.h"
 
 using namespace std;
 using namespace donkey;
+
+string format_hit (string const &fmt, Hit const &hit) {
+    string v;
+    unsigned o = 0;
+    while (o < fmt.size()) {
+        if (fmt[o] != '%') {
+            v.push_back(fmt[o]);
+            ++o;
+            continue;
+        }
+        ++o;
+        if (o >= fmt.size()) break;
+        char c = fmt[o++];
+        if (c == '%') {
+            v.push_back('%');
+        }
+        else if (c == 'k') {
+            v += hit.key;
+        }
+        else if (c == 'm') {
+            v += hit.meta;
+        }
+        else if (c == 'd') {
+            v += hit.details;
+        }
+        else if (c == 's') {
+            v += boost::lexical_cast<string>(hit.score);
+        }
+        else BOOST_VERIFY(0);
+    }
+    return v;
+}
 
 int main (int argc, char *argv[]) {
     string config_path;
     vector<string> overrides;
     string method;
     string type;
+    string hfmt;
     uint32_t db;
     bool raw;
     bool content;
@@ -31,6 +66,7 @@ int main (int argc, char *argv[]) {
         (",R", po::value(&search.R)->default_value(NAN), "")
         ("hint_K", po::value(&search.hint_K)->default_value(-1), "")
         ("hint_R", po::value(&search.hint_R)->default_value(NAN), "")
+        ("hfmt", po::value(&hfmt)->default_value("%k\t%s\t%m"), "hit format")
         ("embed", "")
         ("no-sync", "")
         ("no-reindex", "")
@@ -74,42 +110,68 @@ int main (int argc, char *argv[]) {
         client->ping();
     }
     else if (method == "insert") {
-        string line;
-        while (getline(cin, line)) {
-            size_t off = line.find('\t');
-            if (off == string::npos || (off + 1) >= line.size()) {
-                cerr << "Bad line: " << line << endl;
-                continue;
+        vector<string> lines;
+        {   // load all jobs
+            string line;
+            while (getline(cin, line)) {
+                lines.push_back(line);
             }
-            size_t off2 = line.find('\t', off+1);
-            if (off2 == string::npos) {
-                off2 = line.size();
+        }
+        vector<InsertRequest> reqs(lines.size());
+        vector<InsertResponse> resps(lines.size());
+#pragma omp parallel
+        {
+            Service *th_client = client;
+            int th = omp_get_thread_num();
+            if ((vm.count("embed") == 0) && (th > 0)) { // create clients for new threads
+                th_client = make_client(config);
             }
-            InsertRequest req;
-            InsertResponse resp;
-            req.db = db;
-            req.raw = raw;
-            req.key = line.substr(0, off);
-            req.type = type;
-            req.url = line.substr(off+1, off2 - off-1);
-            if (off2 + 1 < line.size()) {
-                req.meta = line.substr(off2 + 1);
-            }
-            if (content) {
-                ReadFile(req.url, &req.content);
-                req.url.clear();
-            }
-            try {
-                client->insert(req, &resp);
-                cout << req.key;
-                if (verbose) {
-                    cout << '\t' << resp.time << '\t' << resp.load_time << '\t' << resp.journal_time << '\t' << resp.index_time << endl;
+#pragma omp for
+            for (unsigned i = 0; i < lines.size(); ++i) {
+                string const &line = lines[i];
+                size_t off = line.find('\t');
+                if (off == string::npos || (off + 1) >= line.size()) {
+                    cerr << "Bad line: " << line << endl;
+                    continue;
                 }
-                cout << endl;
+                size_t off2 = line.find('\t', off+1);
+                if (off2 == string::npos) {
+                    off2 = line.size();
+                }
+                InsertRequest &req = reqs[i];
+                InsertResponse &resp = resps[i];
+                req.db = db;
+                req.raw = raw;
+                req.key = line.substr(0, off);
+                req.type = type;
+                req.url = line.substr(off+1, off2 - off-1);
+                if (off2 + 1 < line.size()) {
+                    req.meta = line.substr(off2 + 1);
+                }
+                if (content) {
+                    ReadFile(req.url, &req.content);
+                    req.url.clear();
+                }
+                try {
+                    client->insert(req, &resp);
+                }
+                catch (Error const &e) {
+                    cerr << "Error " << e.code() << ": " << e.what() << endl;
+                }
+                req.content.clear();
             }
-            catch (Error const &e) {
-                cerr << "Error " << e.code() << ": " << e.what() << endl;
+            if (th_client != client) {
+                delete th_client;
             }
+        }
+        for (unsigned i = 0; i < lines.size(); ++i) {
+            auto &req = reqs[i];
+            auto &resp = resps[i];
+            cout << req.key;
+            if (verbose) {
+                cout << '\t' << resp.time << '\t' << resp.load_time << '\t' << resp.journal_time << '\t' << resp.index_time << endl;
+            }
+            cout << endl;
         }
         {
             MiscRequest req;
@@ -127,34 +189,62 @@ int main (int argc, char *argv[]) {
         }
     }
     else if (method == "search") {
-        string key;
-        string url;
-        while (cin >> key >> url) {
-            SearchRequest req = search;
-            SearchResponse resp;
-            req.db = db;
-            req.raw = raw;
-            req.type = type;
-            if (content) {
-                ReadFile(url, &req.content);
+        vector<string> keys;
+        vector<string> urls;
+        {
+            string key;
+            string url;
+            while (cin >> key >> url) {
+                keys.push_back(key);
+                urls.push_back(url);
             }
-            else {
-                req.url = url;
+        }
+        vector<SearchRequest> reqs(keys.size(), search);
+        vector<SearchResponse> resps(keys.size());
+#pragma omp parallel
+        {
+            Service *th_client = client;
+            int th = omp_get_thread_num();
+            if ((vm.count("embed") == 0) && (th > 0)) { // create clients for new threads
+                th_client = make_client(config);
             }
-            try {
-                client->search(req, &resp);
-                if (verbose) {
-                    cout << key << ": " << resp.time << '\t' << resp.load_time << '\t' << resp.filter_time << '\t' << resp.rank_time << endl;
+#pragma omp for
+            for (unsigned i = 0; i < keys.size(); ++i) {
+                string const &url = urls[i];
+                SearchRequest &req = reqs[i];
+                SearchResponse &resp = resps[i];
+                req.db = db;
+                req.raw = raw;
+                req.type = type;
+                if (content) {
+                    ReadFile(url, &req.content);
                 }
-                for (auto const &h: resp.hits) {
-                    cout << key << " => " << h.key << '\t' << h.score << '\t' << h.meta << endl;
+                else {
+                    req.url = url;
                 }
-                if (resp.hits.empty()) {
-                    cout << key << endl;
+                try {
+                    client->search(req, &resp);
                 }
+                catch (Error const &e) {
+                    cerr << "Error " << e.code() << ": " << e.what() << endl;
+                }
+                req.content.clear();
             }
-            catch (Error const &e) {
-                cerr << "Error " << e.code() << ": " << e.what() << endl;
+            if (th_client != client) {
+                delete th_client;
+            }
+        }
+        for (unsigned i = 0; i < keys.size(); ++i) {
+            string const &key = keys[i];
+            auto &resp = resps[i];
+            if (verbose) {
+                cout << key << ": " << resp.time << '\t' << resp.load_time << '\t' << resp.filter_time << '\t' << resp.rank_time << endl;
+            }
+            for (auto const &h: resp.hits) {
+                cout << key << " => " << format_hit(hfmt, h) << endl;
+            }
+            if (resp.hits.empty()) {
+                cout << key << endl;
             }
         }
     }
