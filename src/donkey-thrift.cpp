@@ -171,8 +171,8 @@ class DonkeyClientImpl: public Service {
 
 public:
     DonkeyClientImpl (Config const &config)
-        : address(config.get<string>("donkey.thrift.client.server", "localhost")),
-        socket(new TSocket(address.host("localhost"), address.port(50052))),
+        : address(config.get<string>("donkey.thrift.client.server", "127.0.0.1")),
+        socket(new TSocket(address.host("127.0.0.1"), address.port(50052))),
         transport(new TBufferedTransport(socket)),
         protocol(new TBinaryProtocol(transport)),
         client(protocol)
@@ -182,7 +182,7 @@ public:
 
     DonkeyClientImpl (string const &addr)
         : address(addr),
-        socket(new TSocket(address.host("localhost"), address.port(50052))),
+        socket(new TSocket(address.host("127.0.0.1"), address.port(50052))),
         transport(new TBufferedTransport(socket)),
         protocol(new TBinaryProtocol(transport)),
         client(protocol)

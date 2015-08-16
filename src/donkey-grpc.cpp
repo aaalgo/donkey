@@ -122,7 +122,7 @@ class DonkeyClientImpl: public Service {
 public:
     DonkeyClientImpl (Config const &config) {
         grpc_check_init();
-        stub = new api::Donkey::Stub(grpc::CreateChannel(config.get<string>("donkey.grpc.client.server", "localhost:50051"), grpc::InsecureCredentials(), grpc::ChannelArguments()));
+        stub = new api::Donkey::Stub(grpc::CreateChannel(config.get<string>("donkey.grpc.client.server", "127.0.0.1:50051"), grpc::InsecureCredentials(), grpc::ChannelArguments()));
         BOOST_VERIFY(stub);
     }
 

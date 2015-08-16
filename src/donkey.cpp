@@ -1,3 +1,4 @@
+#include <arpa/inet.h>
 #include <sstream>
 #define BOOST_SPIRIT_THREADSAFE
 #include <boost/property_tree/xml_parser.hpp>
@@ -117,12 +118,34 @@ namespace donkey {
     NetworkAddress::NetworkAddress (string const &server) {
         auto off = server.find(':');
         if (off == server.npos || off + 1 >= server.size()) {
+            struct sockaddr_in sa;
             h = server;
             p = -1;
         }
         else {
             h = server.substr(0, off);
             p = boost::lexical_cast<int>(server.substr(off+1));
+        }
+        // translate hostname to IP address
+        struct in_addr in;
+        int r = inet_aton(h.c_str(), &in);
+        if (r == 0) {
+            // invalid IP address, use getent to convert to IP address
+            string cmd(format("getent ahostsv4 %s", h));
+
+            FILE *fp = popen(cmd.c_str(), "r");
+            BOOST_VERIFY(fp);
+            char line[4000];
+            while (fgets(line, 4000, fp)) {
+                if (strstr(line, "STREAM") && strstr(line, h.c_str())) {
+                    char *sp = strchr(line, ' ');
+                    string ip(line, sp);
+                    LOG(info) << "IP resolving " << h << " to " << ip;
+                    h = ip;
+                    break;
+                }
+            }
+            pclose(fp);
         }
     }
 

@@ -177,7 +177,7 @@ public:
             threads = count;
         }
         if (servers.empty()) {
-            string server = config.get<string>("donkey.thrift.client.server", "localhost:50052");
+            string server = config.get<string>("donkey.thrift.client.server", "127.0.0.1:50052");
             servers.push_back(server);
         }
     }

@@ -123,7 +123,8 @@ int main (int argc, char *argv[]) {
         {
             Service *th_client = client;
             int th = omp_get_thread_num();
-            if ((vm.count("embed") == 0) && (th > 0)) { // create clients for new threads
+            if ((vm.count("embed") == 0) && (th != 0)) { // create clients for new threads
+#pragma omp critical
                 th_client = make_client(config);
             }
 #pragma omp for
@@ -153,7 +154,7 @@ int main (int argc, char *argv[]) {
                     req.url.clear();
                 }
                 try {
-                    client->insert(req, &resp);
+                    th_client->insert(req, &resp);
                 }
                 catch (Error const &e) {
                     cerr << "Error " << e.code() << ": " << e.what() << endl;
@@ -205,7 +206,8 @@ int main (int argc, char *argv[]) {
         {
             Service *th_client = client;
             int th = omp_get_thread_num();
-            if ((vm.count("embed") == 0) && (th > 0)) { // create clients for new threads
+            if ((vm.count("embed") == 0) && (th != 0)) { // create clients for new threads
+#pragma omp critical
                 th_client = make_client(config);
             }
 #pragma omp for
@@ -223,7 +225,7 @@ int main (int argc, char *argv[]) {
                     req.url = url;
                 }
                 try {
-                    client->search(req, &resp);
+                    th_client->search(req, &resp);
                 }
                 catch (Error const &e) {
                     cerr << "Error " << e.code() << ": " << e.what() << endl;
