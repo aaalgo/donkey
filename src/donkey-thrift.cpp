@@ -61,6 +61,7 @@ class DonkeyHandler : virtual public api::DonkeyIf {
             req.raw = request.raw;
             req.url = request.url;
             req.content = request.content;
+            req.type = request.type;
             req.K = request.__isset.K ? request.K : -1;
             req.R = request.__isset.R ? request.R : NAN;
             req.hint_K = request.__isset.hint_K ? request.hint_K: -1;
@@ -94,6 +95,7 @@ class DonkeyHandler : virtual public api::DonkeyIf {
         req.raw = request.raw;
         req.url = request.url;
         req.content = request.content;
+        req.type = request.type;
 
         InsertResponse resp;
         server->insert(req, &resp);
@@ -208,6 +210,7 @@ public:
             req.raw = request.raw;
             req.url = request.url;
             req.content = request.content;
+            req.type = request.type;
             req.key = request.key;
             req.meta = request.meta;
             client.insert(resp, req);
@@ -226,6 +229,7 @@ public:
             req.raw = request.raw;
             req.url = request.url;
             req.content = request.content;
+            req.type = request.type;
             req.__set_K(request.K);
             req.__set_R(request.R);
             req.__set_hint_K(request.hint_K);

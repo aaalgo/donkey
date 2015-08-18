@@ -6,34 +6,96 @@
 using namespace std;
 using namespace donkey;
 
-string format_hit (string const &fmt, Hit const &hit) {
+struct Task {
+    string key;
+    string url;
+    string meta;
+    // return whether successful
+    bool parse (string const &line) {
+        size_t off = line.find('\t');
+        if (off == string::npos || (off + 1) >= line.size()) {
+            return false;
+        }
+        size_t off2 = line.find('\t', off+1);
+        if (off2 == string::npos) {
+            off2 = line.size();
+        }
+        key = line.substr(0, off);
+        url = line.substr(off+1, off2-off-1);
+        if (off2 + 1 < line.size()) {
+            meta = line.substr(off2 + 1);
+        }
+        return true;
+    }
+};
+
+class Tasks: public vector<Task> {
+public:
+    Tasks () {
+        // load all jobs from cin
+        string line;
+        while (getline(cin, line)) {
+            Task task;
+            if (task.parse(line)) {
+                push_back(task);
+            }
+            else {
+                cerr << "Bad line: " << line << endl;
+            }
+        }
+    }
+};
+
+string format_hit (string const &fmt, Task const &task, Hit const &hit) {
     string v;
     unsigned o = 0;
     while (o < fmt.size()) {
-        if (fmt[o] != '%') {
+        if (fmt[o] == '%') {
+            ++o;
+            if (o >= fmt.size()) break;
+            char c = fmt[o++];
+            if (c == '%') {
+                v.push_back('%');
+            }
+            else if (c == 'k') {
+                v += hit.key;
+            }
+            else if (c == 'm') {
+                v += hit.meta;
+            }
+            else if (c == 'd') {
+                v += hit.details;
+            }
+            else if (c == 's') {
+                v += boost::lexical_cast<string>(hit.score);
+            }
+            else if (c == 'K') {
+                v += task.key;
+            }
+            else if (c == 'U') {
+                v += task.url;
+            }
+            else if (c == 'M') {
+                v += task.meta;
+            }
+            else BOOST_VERIFY(0);
+        }
+        else if (fmt[o] == '\\') {
+            ++o;
+            if (o >= fmt.size()) break;
+            char c = fmt[o++];
+            if (c == 't') {
+                v.push_back('\t');
+            }
+            else if (c == '\\') {
+                v.push_back('\\');
+            }
+            else BOOST_VERIFY(0);
+        }
+        else {
             v.push_back(fmt[o]);
             ++o;
-            continue;
         }
-        ++o;
-        if (o >= fmt.size()) break;
-        char c = fmt[o++];
-        if (c == '%') {
-            v.push_back('%');
-        }
-        else if (c == 'k') {
-            v += hit.key;
-        }
-        else if (c == 'm') {
-            v += hit.meta;
-        }
-        else if (c == 'd') {
-            v += hit.details;
-        }
-        else if (c == 's') {
-            v += boost::lexical_cast<string>(hit.score);
-        }
-        else BOOST_VERIFY(0);
     }
     return v;
 }
@@ -43,13 +105,13 @@ int main (int argc, char *argv[]) {
     vector<string> overrides;
     string method;
     string type;
+    string rfmt;
     string hfmt;
     uint32_t db;
     bool raw;
     bool content;
     bool verbose;
     SearchRequest search;
-    
 
     namespace po = boost::program_options;
     po::options_description desc("Allowed options");
@@ -66,7 +128,8 @@ int main (int argc, char *argv[]) {
         (",R", po::value(&search.R)->default_value(NAN), "")
         ("hint_K", po::value(&search.hint_K)->default_value(-1), "")
         ("hint_R", po::value(&search.hint_R)->default_value(NAN), "")
-        ("hfmt", po::value(&hfmt)->default_value("%k\t%s\t%m"), "hit format")
+        ("rfmt", po::value(&rfmt)->default_value("%k\t%s\t%m"), "response format")
+        ("hfmt", po::value(&hfmt)->default_value("%K => %k\t%s\t%m"), "hit format")
         ("embed", "")
         ("no-sync", "")
         ("no-reindex", "")
@@ -110,15 +173,9 @@ int main (int argc, char *argv[]) {
         client->ping();
     }
     else if (method == "insert") {
-        vector<string> lines;
-        {   // load all jobs
-            string line;
-            while (getline(cin, line)) {
-                lines.push_back(line);
-            }
-        }
-        vector<InsertRequest> reqs(lines.size());
-        vector<InsertResponse> resps(lines.size());
+        Tasks tasks;
+        vector<InsertRequest> reqs(tasks.size());
+        vector<InsertResponse> resps(tasks.size());
 #pragma omp parallel
         {
             Service *th_client = client;
@@ -128,27 +185,16 @@ int main (int argc, char *argv[]) {
                 th_client = make_client(config);
             }
 #pragma omp for
-            for (unsigned i = 0; i < lines.size(); ++i) {
-                string const &line = lines[i];
-                size_t off = line.find('\t');
-                if (off == string::npos || (off + 1) >= line.size()) {
-                    cerr << "Bad line: " << line << endl;
-                    continue;
-                }
-                size_t off2 = line.find('\t', off+1);
-                if (off2 == string::npos) {
-                    off2 = line.size();
-                }
+            for (unsigned i = 0; i < tasks.size(); ++i) {
+                Task const &task = tasks[i];
                 InsertRequest &req = reqs[i];
                 InsertResponse &resp = resps[i];
                 req.db = db;
                 req.raw = raw;
-                req.key = line.substr(0, off);
+                req.key = task.key;
                 req.type = type;
-                req.url = line.substr(off+1, off2 - off-1);
-                if (off2 + 1 < line.size()) {
-                    req.meta = line.substr(off2 + 1);
-                }
+                req.url = task.url;
+                req.meta = task.meta;
                 if (content) {
                     ReadFile(req.url, &req.content);
                     req.url.clear();
@@ -165,7 +211,7 @@ int main (int argc, char *argv[]) {
                 delete th_client;
             }
         }
-        for (unsigned i = 0; i < lines.size(); ++i) {
+        for (unsigned i = 0; i < tasks.size(); ++i) {
             auto &req = reqs[i];
             auto &resp = resps[i];
             cout << req.key;
@@ -190,18 +236,9 @@ int main (int argc, char *argv[]) {
         }
     }
     else if (method == "search") {
-        vector<string> keys;
-        vector<string> urls;
-        {
-            string key;
-            string url;
-            while (cin >> key >> url) {
-                keys.push_back(key);
-                urls.push_back(url);
-            }
-        }
-        vector<SearchRequest> reqs(keys.size(), search);
-        vector<SearchResponse> resps(keys.size());
+        Tasks tasks;
+        vector<SearchRequest> reqs(tasks.size(), search);
+        vector<SearchResponse> resps(tasks.size());
 #pragma omp parallel
         {
             Service *th_client = client;
@@ -211,18 +248,18 @@ int main (int argc, char *argv[]) {
                 th_client = make_client(config);
             }
 #pragma omp for
-            for (unsigned i = 0; i < keys.size(); ++i) {
-                string const &url = urls[i];
+            for (unsigned i = 0; i < tasks.size(); ++i) {
+                Task const &task = tasks[i];
                 SearchRequest &req = reqs[i];
                 SearchResponse &resp = resps[i];
                 req.db = db;
                 req.raw = raw;
                 req.type = type;
                 if (content) {
-                    ReadFile(url, &req.content);
+                    ReadFile(task.url, &req.content);
                 }
                 else {
-                    req.url = url;
+                    req.url = task.url;
                 }
                 try {
                     th_client->search(req, &resp);
@@ -236,17 +273,16 @@ int main (int argc, char *argv[]) {
                 delete th_client;
             }
         }
-        for (unsigned i = 0; i < keys.size(); ++i) {
-            string const &key = keys[i];
+        for (unsigned i = 0; i < tasks.size(); ++i) {
+            Task const &task = tasks[i];
             auto &resp = resps[i];
+            /*
             if (verbose) {
-                cout << key << ": " << resp.time << '\t' << resp.load_time << '\t' << resp.filter_time << '\t' << resp.rank_time << endl;
+                cout << task.key << ": " << resp.time << '\t' << resp.load_time << '\t' << resp.filter_time << '\t' << resp.rank_time << endl;
             }
+            */
             for (auto const &h: resp.hits) {
-                cout << key << " => " << format_hit(hfmt, h) << endl;
-            }
-            if (resp.hits.empty()) {
-                cout << key << endl;
+                cout << format_hit(hfmt, task, h) << endl;
             }
         }
     }
