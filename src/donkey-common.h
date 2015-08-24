@@ -154,17 +154,21 @@ namespace donkey {
     struct tag_no_weight {
     };
 
-    template <typename T, typename D = tag_no_data, typename W = tag_no_weight>
+    // !IMPORTANT: 
+    template <typename T, typename FEATURE_DATA = tag_no_data, typename W = tag_no_weight, typename OBJECT_DATA = tag_no_data>
     struct MultiPartObject: public ObjectBase {
         typedef T feature_type;
-        typedef D data_type;
+        typedef FEATURE_DATA feature_data_type;
+        typedef OBJECT_DATA object_data_type;
         typedef W weight_type;
         struct Part {
             feature_type feature;
             weight_type weight;
-            data_type data;
+            feature_data_type data;
         };
         vector<Part> parts;
+        object_data_type data;
+
 
 
         void enumerate (function<void(unsigned tag, feature_type const *)> callback) const {
@@ -182,10 +186,13 @@ namespace donkey {
                 if (!std::is_same<weight_type, tag_no_weight>::value) {
                     is.read(reinterpret_cast<char *>(&part.weight), sizeof(weight_type));
                 }
-                if (!std::is_same<data_type, tag_no_data>::value) {
-                    is.read(reinterpret_cast<char *>(&part.data), sizeof(data_type));
+                if (!std::is_same<feature_data_type, tag_no_data>::value) {
+                    is.read(reinterpret_cast<char *>(&part.data), sizeof(feature_data_type));
                 }
                 part.feature.read(is);
+            }
+            if (!std::is_same<object_data_type, tag_no_data>::value) {
+                is.read(reinterpret_cast<char *>(&data), sizeof(object_data_type));
             }
         }
 
@@ -196,15 +203,19 @@ namespace donkey {
                 if (!std::is_same<weight_type, tag_no_weight>::value) {
                     os.write(reinterpret_cast<char const *>(&part.weight), sizeof(weight_type));
                 }
-                if (!std::is_same<data_type, tag_no_data>::value) {
-                    os.write(reinterpret_cast<char const *>(&part.data), sizeof(data_type));
+                if (!std::is_same<feature_data_type, tag_no_data>::value) {
+                    os.write(reinterpret_cast<char const *>(&part.data), sizeof(feature_data_type));
                 }
                 part.feature.write(os);
             }
+            if (!std::is_same<object_data_type, tag_no_data>::value) {
+                os.write(reinterpret_cast<char const *>(&data), sizeof(object_data_type));
+            }
         }
 
-        void swap (MultiPartObject<T, D, W> &v) {
+        void swap (MultiPartObject<T, FEATURE_DATA, W, OBJECT_DATA> &v) {
             std::swap(parts, v.parts);
+            std::swap(data, v.data);
         }
     };
 

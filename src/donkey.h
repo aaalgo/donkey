@@ -241,7 +241,6 @@ namespace donkey {
     Index *create_linear_index (Config const &);
     Index *create_kgraph_index (Config const &);
     Index *create_lsh_index (Config const &);
-
     // utility functions
     
     static inline void ReadFile (const std::string &path, std::string *binary) {
@@ -292,6 +291,10 @@ namespace donkey {
 
 // data-type-specific configuration
 #include "config.h"
+
+#ifdef AAALGO_DONKEY_TEXT
+#include "donkey-inverted-index.h"
+#endif
 
 namespace donkey {
 
@@ -462,6 +465,11 @@ namespace donkey {
             else if (algo == "kgraph") {
                 index = create_kgraph_index(config);
             }
+#ifdef AAALGO_DONKEY_TEXT
+            else if (algo == "inverted") {
+                index = create_inverted_index(config);
+            }
+#endif
             else throw ConfigError("unknown index algorithm");
             BOOST_VERIFY(index);
         }
