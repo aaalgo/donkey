@@ -21,6 +21,7 @@ HEADERS = donkey.h plugin/config.h $(X_HEADERS)
 
 TAGS = protocol.tag
 SERVER_OBJS = server.o donkey.o logging.o index-kgraph.o index-lsh.o $(PROTOCOL_OBJS) $(X_OBJS)
+JOURNAL_STAT_OBJS = journal-stat.o donkey.o logging.o index-kgraph.o index-lsh.o $(PROTOCOL_OBJS) $(X_OBJS)
 CLIENT_OBJS = client.o donkey.o logging.o index-kgraph.o index-lsh.o $(PROTOCOL_OBJS) $(X_OBJS)
 PROXY_OBJS = proxy.o donkey.o logging.o $(PROTOCOL_OBJS) $(X_OBJS)
 STRESS_OBJS = stress.o donkey.o logging.o $(PROTOCOL_OBJS) $(X_OBJS)
@@ -31,6 +32,9 @@ server:	$(TAGS) $(SERVER_OBJS) $(HEADERS)
 	$(CXX) $(LDFLAGS) $(SERVER_OBJS) $(LDLIBS) -o $@ 
 
 client:	$(TAGS) $(CLIENT_OBJS) $(HEADERS)
+	$(CXX) $(LDFLAGS) $(CLIENT_OBJS) $(LDLIBS) -o $@ 
+
+journal-stat:	$(TAGS) $(JOURNAL_STAT_OBJS) $(HEADERS)
 	$(CXX) $(LDFLAGS) $(CLIENT_OBJS) $(LDLIBS) -o $@ 
 
 stress:	$(TAGS) $(STRESS_OBJS) $(HEADERS)
