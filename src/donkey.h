@@ -455,7 +455,11 @@ namespace donkey {
             if (default_K <= 0) throw ConfigError("invalid defaults.K");
             if (!isnormal(default_R)) throw ConfigError("invalid defaults.R");
 
-            string algo = config.get<string>("donkey.index.algorithm", "lsh");
+#ifdef AAALGO_DONKEY_TEXT
+            string algo = config.get<string>("donkey.index.algorithm", "inverted");
+#else
+            string algo = config.get<string>("donkey.index.algorithm", "kgraph");
+#endif
             if (algo == "linear") {
                 index = create_linear_index(config);
             }

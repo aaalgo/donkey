@@ -1,5 +1,5 @@
-#ifndef AAALGO_DONKEY_SPARSE
-#define AAALGO_DONKEY_SPARSE
+#ifndef AAALGO_DONKEY_TEXT
+#define AAALGO_DONKEY_TEXT
 
 /* HOW TO USE THIS:
  *
@@ -17,6 +17,23 @@
 #include "donkey-common.h"
 
 namespace donkey {
+
+    template <typename T>
+    struct WordFeature {
+        typedef T value_type;
+        value_type value;
+    };
+
+    namespace distance {
+
+        template <typename T>
+        struct WordDistance: public Distance {
+            typedef T feature_type;
+            static float apply (feature_type const &v1, feature_type const &v2) {
+                return v1.value != v2.value;
+            }
+        };
+    }
 
     template <typename T, typename FEATURE_DATA = tag_no_data, typename OBJECT_DATA = tag_no_data>
     struct TextObject: public ObjectBase {
@@ -51,7 +68,7 @@ namespace donkey {
         }
 
         void write (std::ostream &os) const {
-            uint32_t sz = parts.size();
+            uint32_t sz = words.size();
             os.write(reinterpret_cast<char const *>(&sz), sizeof(sz));
             os.write(reinterpret_cast<char const *>(&words[0]), sizeof(words[0])*sz);
             if (!std::is_same<object_data_type, tag_no_data>::value) {
