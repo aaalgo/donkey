@@ -167,7 +167,14 @@ int main (int argc, char *argv[]) {
         client = new Server(config);
     }
     else {
-        client = make_client(config);
+        try {
+            client = make_client(config);
+        }
+        catch (exception const &e) {
+            cerr << "Failed to create client: " << e.what() << endl;
+            return -1;
+        }
+
     }
     if (method == "ping") {
         client->ping();
@@ -196,7 +203,7 @@ int main (int argc, char *argv[]) {
                 req.url = task.url;
                 req.meta = task.meta;
                 if (content) {
-                    ReadFile(req.url, &req.content);
+                    ReadURL(req.url, &req.content);
                     req.url.clear();
                 }
                 try {

@@ -236,6 +236,11 @@ namespace donkey {
         virtual void insert (uint32_t object, uint32_t tag, Feature const *feature) = 0;
         virtual void clear () = 0;
         virtual void rebuild () = 0;
+        virtual void recover (string const &) {
+            rebuild();
+        }
+        virtual void snapshot (string const &) const {
+        }
     };
 
     Index *create_linear_index (Config const &);
@@ -258,6 +263,8 @@ namespace donkey {
         }
         if (!is) binary->clear();
     }
+
+    void ReadURL (const std::string &url, std::string *binary);
 
     static inline void WriteFile (const std::string &path, std::string const &binary) {
         // file could not be too big
@@ -580,6 +587,20 @@ namespace donkey {
             // The index building part doesn't requires read-lock only
             index->rebuild();
         }
+
+        void snapshot_index (string const &path) {
+            unique_lock<shared_mutex> lock(mutex);
+            if (records.size()) {
+                index->snapshot(path);
+            }
+        }
+
+        void recover_index (string const &path) {
+            unique_lock<shared_mutex> lock(mutex);
+            if (records.size()) {
+                index->recover(path);
+            }
+        }
     };
 
     class Service {
@@ -639,8 +660,8 @@ namespace donkey {
                 }
             });
             // reindex all dbs
-            for (auto db: dbs) {
-                db->reindex();
+            for (unsigned i = 0; i < dbs.size(); ++i) {
+                dbs[i]->recover_index(format("%s/%d.index", root, i));
             }
         }
 
@@ -700,6 +721,9 @@ namespace donkey {
             else if (request.method == "sync") {
                 if (readonly) throw PermissionError("readonly journal");
                 journal.sync();
+                for (unsigned i = 0; i < dbs.size(); ++i) {
+                    dbs[i]->snapshot_index(format("%s/%d.index", root, i));
+                }
             }
             response->code = 0;
         }

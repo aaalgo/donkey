@@ -155,6 +155,43 @@ namespace donkey {
                 delete kg;
             }
         }
+
+        virtual void recover (string const &path) {
+            KGraph *kg = nullptr;
+            kg = KGraph::create();
+            size_t sz = 0;
+            try {
+                kg->load(path.c_str());
+                string meta_path = path + ".meta";
+                std::ifstream is(meta_path.c_str());
+                if (!is) throw 0;
+                is >> sz;
+            }
+            catch (...) {
+                delete kg;
+                kg = nullptr;
+            }
+            if (kg) {
+                indexed_size = sz;
+                std::swap(kg, kg_index);
+                if (kg) {
+                    delete kg;
+                }
+            }
+            else {
+                // fail to load, rebuild
+                rebuild();
+            }
+        }
+
+        virtual void snapshot (string const &path) const {
+            if (kg_index) {
+                kg_index->save(path.c_str());
+                string meta_path = path + ".meta";
+                std::ofstream os(meta_path.c_str());
+                os << indexed_size << std::endl;
+            }
+        }
     };
 
     Index *create_kgraph_index (Config const &config) {

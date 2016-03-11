@@ -1,5 +1,6 @@
 #include <arpa/inet.h>
 #include <sstream>
+#include <boost/filesystem.hpp>
 #define BOOST_SPIRIT_THREADSAFE
 #include <boost/property_tree/xml_parser.hpp>
 #include <boost/lexical_cast.hpp>
@@ -68,6 +69,16 @@ namespace donkey {
         return false;
     }
 
+    int wget (string const &url, string const &path) {
+        ostringstream ss;
+        ss << "wget --output-document=" << path << " --tries=3 -nv --no-check-certificate";
+        ss << " --quiet --timeout=5";
+        ss << ' ' << '"' << url << '"';
+        string cmd = ss.str();
+        //LOG(INFO) << cmd;
+        return ::system(cmd.c_str());
+    }
+
     void Server::loadObject (ObjectRequest const &request, Object *object) const {
         namespace fs = boost::filesystem;
         fs::path path;
@@ -79,8 +90,7 @@ namespace donkey {
             if (test_url(request.url)) {
                 is_url = true;
                 path = fs::unique_path();
-                string cmd(format("wget -O '%s' '%s'", path.native(), request.url));
-                int r = ::system(cmd.c_str());
+                int r = wget(request.url, path.native());
                 if (r != 0) {
                     throw ExternalError(cmd);
                 }
@@ -146,6 +156,29 @@ namespace donkey {
                 }
             }
             pclose(fp);
+        }
+    }
+
+    void ReadURL (const std::string &url, std::string *binary) {
+        do {
+            if (url.compare(0, 7, "http://") == 0) break;
+            if (url.compare(0, 8, "https://") == 0) break;
+            if (url.compare(0, 6, "ftp://") == 0) break;
+            // do not support other protocols
+            ReadFile(url, binary);
+            return;
+        } while (false);
+        namespace fs = boost::filesystem;
+        fs::path tmp = fs::unique_path();
+        int r = wget(url, tmp.native());
+        if (r) {
+            LOG(ERROR) << "Fail to download: " << url;
+            fs::remove(tmp);
+            throw ExternalError(cmd);
+        }
+        else {
+            ReadFile(tmp.native(), binary);
+            fs::remove(tmp);
         }
     }
 
