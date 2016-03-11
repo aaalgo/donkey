@@ -70,7 +70,7 @@ namespace donkey {
     }
 
     int wget (string const &url, string const &path) {
-        ostringstream ss;
+        std::ostringstream ss;
         ss << "wget --output-document=" << path << " --tries=3 -nv --no-check-certificate";
         ss << " --quiet --timeout=5";
         ss << ' ' << '"' << url << '"';
@@ -92,7 +92,7 @@ namespace donkey {
                 path = fs::unique_path();
                 int r = wget(request.url, path.native());
                 if (r != 0) {
-                    throw ExternalError(cmd);
+                    throw ExternalError(request.url);
                 }
             }
             else {
@@ -172,9 +172,9 @@ namespace donkey {
         fs::path tmp = fs::unique_path();
         int r = wget(url, tmp.native());
         if (r) {
-            LOG(ERROR) << "Fail to download: " << url;
+            LOG(error) << "Fail to download: " << url;
             fs::remove(tmp);
-            throw ExternalError(cmd);
+            throw ExternalError(url);
         }
         else {
             ReadFile(tmp.native(), binary);
