@@ -5,6 +5,9 @@ struct PingRequest {
 }
 
 struct PingResponse {
+    1:required i32 first_start_time;
+    2:required i32 last_start_time;
+    3:required i32 restart_count;
 }
 
 struct SearchRequest {

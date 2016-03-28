@@ -1,5 +1,6 @@
 #include "donkey-signal.h"
 #include <future>
+#include <mutex>
 #include <boost/log/utility/setup/console.hpp>
 #include <thrift/protocol/TBinaryProtocol.h>
 #include <thrift/transport/TBufferTransports.h>
@@ -20,8 +21,13 @@ using namespace apache::thrift::transport;
 using namespace apache::thrift::concurrency;
 using namespace apache::thrift::server;
 
+static int first_start_time = 0;
+static int restart_count = 0;
+static std::mutex global_mutex;
+
 class DonkeyHandler : virtual public api::DonkeyIf {
     Service *server;
+    int last_start_time;
 
     void protect (function<void()> const &callback) {
         try {
@@ -49,9 +55,18 @@ class DonkeyHandler : virtual public api::DonkeyIf {
  public:
   DonkeyHandler(Service *s): server(s) {
     // Your initialization goes here
+        last_start_time = time(NULL);
+        std::lock_guard<std::mutex> lock(global_mutex);
+        if (restart_count == 0) {
+            first_start_time = last_start_time;
+        }
+        ++restart_count;
   }
 
   void ping(api::PingResponse& response, const api::PingRequest& request) {
+      response.first_start_time = first_start_time;
+      response.last_start_time = last_start_time;
+      response.restart_count = restart_count;
   }
 
   void search(api::SearchResponse& response, const api::SearchRequest& request) {
@@ -120,7 +135,7 @@ class DonkeyHandler : virtual public api::DonkeyIf {
 };
 
 
-void run_server (Config const &config, Service *svr) {
+bool run_server (Config const &config, Service *svr) {
     LOG(info) << "Starting the server...";
     boost::shared_ptr<TProtocolFactory> apiFactory(new TBinaryProtocolFactory());
     boost::shared_ptr<DonkeyHandler> handler(new DonkeyHandler(svr));
@@ -138,7 +153,9 @@ void run_server (Config const &config, Service *svr) {
     ws.wait(&sig);
     server.stop();
     ret.get();
+    return sig == SIGHUP;
 }
+
 
 class DonkeyClientImpl: public Service {
     NetworkAddress address;
@@ -196,10 +213,13 @@ public:
         transport->close();
     }
 
-    void ping () {
+    void ping (PingResponse *r) {
         api::PingRequest req;
         api::PingResponse resp;
         client.ping(resp, req);
+        r->last_start_time = resp.last_start_time;
+        r->first_start_time = resp.first_start_time;
+        r->restart_count = resp.restart_count;
     }
 
     void insert (InsertRequest const &request, InsertResponse *response) {

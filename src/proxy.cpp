@@ -83,7 +83,7 @@ namespace donkey {
         ~Proxy () { // close all dbs
         }
 
-        void ping () {
+        void ping (PingResponse *) {
         }
 
         void insert (InsertRequest const &request, InsertResponse *response) {

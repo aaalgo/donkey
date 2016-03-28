@@ -176,6 +176,12 @@ namespace donkey {
 
     void log_object_request (ObjectRequest const &request, char const *type);
 
+    struct PingResponse {
+        int32_t last_start_time;
+        int32_t first_start_time;
+        int32_t restart_count;
+    };
+
     struct SearchRequest: public ObjectRequest {
         uint16_t db;
         int32_t K;
@@ -606,7 +612,7 @@ namespace donkey {
     class Service {
     public:
         virtual ~Service () = default;
-        virtual void ping () = 0;
+        virtual void ping (PingResponse *response) = 0;
         virtual void insert (InsertRequest const &request, InsertResponse *response) = 0;
         virtual void search (SearchRequest const &request, SearchResponse *response) = 0;
         virtual void misc (MiscRequest const &request, MiscResponse *response) = 0;
@@ -671,7 +677,11 @@ namespace donkey {
             }
         }
 
-        void ping () {
+        // embedded mode
+        void ping (PingResponse *resp) {
+            resp->last_start_time = 0;
+            resp->first_start_time = 0;
+            resp->restart_count = 0;
         }
 
         void insert (InsertRequest const &request, InsertResponse *response) {
@@ -729,7 +739,9 @@ namespace donkey {
         }
     };
 
-    void run_server (Config const &, Service *);
+    // true: reload
+    // false: exit
+    bool run_server (Config const &, Service *);
 
     class NetworkAddress {
         string h;   // empty for nothing 

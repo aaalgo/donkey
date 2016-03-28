@@ -44,13 +44,17 @@ int main (int argc, char *argv[]) {
     OverrideConfig(overrides, &config);
 
     setup_logging(config);
-    Server server(config, readonly);
 
     if (nice > 0) {
         // pid 0 means the calling process, 
         setpriority(PRIO_PROCESS, 0, nice);
     }
-    run_server(config, &server);
+
+    for (;;) {
+        Server server(config, readonly);
+        if (!run_server(config, &server)) break;
+        LOG(info) << "restarting server.";
+    }
     cleanup_logging();
 
     return 0;

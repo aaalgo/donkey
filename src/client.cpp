@@ -177,7 +177,11 @@ int main (int argc, char *argv[]) {
 
     }
     if (method == "ping") {
-        client->ping();
+        PingResponse resp;
+        client->ping(&resp);
+        cout << resp.restart_count << endl;
+        cout << resp.last_start_time << endl;
+        cout << resp.first_start_time << endl;
     }
     else if (method == "insert") {
         Tasks tasks;
