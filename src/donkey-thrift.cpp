@@ -5,7 +5,12 @@
 #include <thrift/protocol/TBinaryProtocol.h>
 #include <thrift/transport/TBufferTransports.h>
 #include <thrift/concurrency/ThreadManager.h>
+#define DONKEY_USE_POSIX_THREADS 1
+#ifndef DONKEY_USE_POSIX_THREADS
+#include <thrift/concurrency/StdThreadFactory.h>
+#else
 #include <thrift/concurrency/PosixThreadFactory.h>
+#endif
 #include <thrift/server/TThreadPoolServer.h>
 #include <thrift/transport/TServerSocket.h>
 #include <thrift/transport/TSocket.h>
@@ -143,7 +148,11 @@ bool run_server (Config const &config, Service *svr) {
     boost::shared_ptr<TServerTransport> serverTransport(new TServerSocket(config.get<int>("donkey.thrift.server.port", 50052)));
     boost::shared_ptr<TTransportFactory> transportFactory(new TBufferedTransportFactory());
     boost::shared_ptr<ThreadManager> threadManager = ThreadManager::newSimpleThreadManager(config.get<int>("donkey.thrift.server.threads", 8));
+#ifndef DONKEY_USE_POSIX_THREADS
+    boost::shared_ptr<StdThreadFactory> threadFactory = boost::shared_ptr<StdThreadFactory>(new StdThreadFactory());
+#else
     boost::shared_ptr<PosixThreadFactory> threadFactory = boost::shared_ptr<PosixThreadFactory>(new PosixThreadFactory());
+#endif
     threadManager->threadFactory(threadFactory);
     threadManager->start();
     TThreadPoolServer server(processor, serverTransport, transportFactory, apiFactory, threadManager);

@@ -241,7 +241,7 @@ int main (int argc, char *argv[]) {
             }
             if (vm.count("no-sync") == 0) {
                 req.method = "sync";
-                client->misc(req, &resp);
+                //client->misc(req, &resp);
                 client->misc(req, &resp);
             }
         }
