@@ -163,7 +163,10 @@ int main (int argc, char *argv[]) {
     setup_logging(config);
 
     Service *client = nullptr;
-    if (vm.count("embed")) {
+    if (method == "extract") {
+        ;
+    }
+    else if (vm.count("embed")) {
         client = new Server(config);
     }
     else {
@@ -183,6 +186,23 @@ int main (int argc, char *argv[]) {
         cout << resp.last_start_time << endl;
         cout << resp.first_start_time << endl;
     }
+    else if (method == "extract") {
+        Tasks tasks;
+        Extractor xtor(config);
+#pragma omp parallel
+        {
+#pragma omp for schedule(dynamic, 1)
+            for (unsigned i = 0; i < tasks.size(); ++i) {
+                Task const &task = tasks[i];
+                Object object;
+                xtor.extract_path(task.url, type, &object);
+                if (task.meta.size()) {
+                    ofstream os(task.meta, std::ios::binary);
+                    object.write(os);
+                }
+            }
+        }
+    }
     else if (method == "insert") {
         Tasks tasks;
         vector<InsertRequest> reqs(tasks.size());
@@ -195,7 +215,7 @@ int main (int argc, char *argv[]) {
 #pragma omp critical
                 th_client = make_client(config);
             }
-#pragma omp for
+#pragma omp for schedule(dynamic, 1)
             for (unsigned i = 0; i < tasks.size(); ++i) {
                 Task const &task = tasks[i];
                 InsertRequest &req = reqs[i];
@@ -258,7 +278,7 @@ int main (int argc, char *argv[]) {
 #pragma omp critical
                 th_client = make_client(config);
             }
-#pragma omp for
+#pragma omp for schedule(dynamic, 1)
             for (unsigned i = 0; i < tasks.size(); ++i) {
                 Task const &task = tasks[i];
                 SearchRequest &req = reqs[i];
@@ -306,7 +326,7 @@ int main (int argc, char *argv[]) {
         cout << "code: " << resp.code << endl;
         cout << "text: " << resp.text << endl;
     }
-    delete client;
+    if (client) delete client;
     cleanup_logging();
     return 0;
 }

@@ -52,6 +52,7 @@ namespace donkey {
         KGraph::IndexParams index_params;
         KGraph::SearchParams search_params;
         KGraph *kg_index;
+
     public:
         KGraphIndex (Config const &config, bool linear_ = false): 
             Index(config),
@@ -186,7 +187,7 @@ namespace donkey {
 
         virtual void snapshot (string const &path) const {
             if (kg_index) {
-                kg_index->save(path.c_str());
+                kg_index->save(path.c_str(), KGraph::FORMAT_NO_DIST);
                 string meta_path = path + ".meta";
                 std::ofstream os(meta_path.c_str());
                 os << indexed_size << std::endl;
