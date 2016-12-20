@@ -2,12 +2,15 @@
 #include <future>
 #include <mutex>
 #include <boost/log/utility/setup/console.hpp>
+#include <cppcodec/base64_default_rfc4648.hpp>
 #include <simple-web-server/server_extra.hpp>
 #include <simple-web-server/client_http.hpp>
 #include <json11.hpp>
 #include "donkey.h"
 
 namespace donkey {
+
+static unsigned short DEFAULT_PORT = 60052;
 
 static int first_start_time = 0;
 static int restart_count = 0;
@@ -24,6 +27,20 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
     Service *server;
     int last_start_time;
 
+    typedef (DonkeyHandler::*Method) (Json &response, Json &request);
+
+    static void handle (Method method, DonkeyHandler *o, Response &resp, Request &req) {
+        Json input;
+        Json output;
+        if (req.content.size()) {
+            string err;
+            input = Json::parse(req.content, err);
+            if (err.size()) throw runtime_error(err);
+        }
+        o->*method(output, input);
+        resp.mime = "application/javascript";
+        resp.content = output.dump();
+    }
  public:
   DonkeyHandler (Service *s, HttpServer *http):
       : Multiplexer(http),
@@ -51,7 +68,7 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
   }
 
 #define LOAD_PARAM(from, to, name, type, def) \
-  { to.name = def; auto it = req.find(#name); if (it != req.end()) { param = it->second.type(); }}
+  { to.name = def; auto it = req.find(#name); if (it != req.end()) { to.name = it->second.type(); }}
 
   void search(Json &response, Json &request) {
         SearchRequest req;
@@ -64,6 +81,11 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
         LOAD_PARAM(request, req, R, number_value, NAN);
         LOAD_PARAM(request, req, hint_K, int_value, -1);
         LOAD_PARAM(request, req, hint_R, number_value, NAN);
+        if (req.content.size()) {
+            string hex;
+            hex.swap(req.content);
+            req.content = base64::decode<string>(hex);
+        }
 
         SearchResponse resp;
 
@@ -93,6 +115,11 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
         LOAD_PARAM(request, req, url, string_value, "");
         LOAD_PARAM(request, req, content, string_value, "");
         LOAD_PARAM(request, req, type, string_value, "");
+        if (req.content.size()) {
+            string hex;
+            hex.swap(req.content);
+            req.content = base64::decode<string>(hex);
+        }
 
         InsertResponse resp;
         server->insert(req, &resp);
@@ -120,23 +147,18 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
 
 bool run_server (Config const &config, Service *svr) {
     LOG(info) << "Starting the server...";
-    HttpServer http(config.get<int>("donkey.http.server.port", 60052),
+    HttpServer http(config.get<int>("donkey.http.server.port", DEFAULT_PORT),
                     config.get<int>("donkey.thrift.server.threads", 8));
     DonkeyHandler mux(svr, &http);
-    http.start();
-    /*
-    threadManager->threadFactory(threadFactory);
-    threadManager->start();
-    TThreadPoolServer server(processor, serverTransport, transportFactory, apiFactory, threadManager);
-    std::future<void> ret = std::async(std::launch::async, [&server](){server.serve();});
+    thread th([&http]() {
+                http.start();
+            });
     WaitSignal ws;
     int sig = 0;
     ws.wait(&sig);
-    server.stop();
-    ret.get();
+    http.stop();
+    th.join();
     return sig == SIGHUP;
-    */
-    return true;
 }
 
 
@@ -145,11 +167,11 @@ class DonkeyClientImpl: public Service {
         try {
             callback();
         }
-        catch (api::DonkeyException const &ae) {
-            throw Error(ae.why, ae.what);
+        catch (exception const &e) {
+            throw InternalError(e.what());
         }
         catch (...) {
-            throw Error("unknown error");
+            throw InternalError("unknown error");
         }
     }
 
@@ -157,11 +179,11 @@ class DonkeyClientImpl: public Service {
         try {
             callback();
         }
-        catch (api::DonkeyException const &ae) {
-            throw Error(ae.why, ae.what);
+        catch (exception const &e) {
+            throw InternalError(e.what());
         }
         catch (...) {
-            throw Error("unknown error");
+            throw InternalError("unknown error");
         }
     }
 
@@ -172,18 +194,18 @@ class DonkeyClientImpl: public Service {
         string err;
         *output = Json::parse(r->content.string(), err);
         if (err.size()) {
-            throw runtime_error(err);
+            throw RequestError(err);
         }
     }
 public:
     DonkeyClientImpl (Config const &config)
         : client(config.get<string>("donkey.http.client.server", "127.0.0.1"),
-                 config.get<int>("donkey.http.client.port", 60052)) {
+                 config.get<unsigned short>("donkey.http.client.port", DEFAULT_PORT)) {
     {
     }
 
-    DonkeyClientImpl (string const &addr)
-        : client(addr, 60052) 
+    DonkeyClientImpl (string const &addr, unsigned short port)
+        : client(addr, port) 
     {
     }
 
@@ -272,7 +294,9 @@ Service *make_client (Config const &config) {
 }
 
 Service *make_client (string const &address) {
-    return new DonkeyClientImpl(address);
+    auto off = address.find(':');
+    if (off == address.npos) return new DonkeyClientImpl(address, DEFAULT_PORT);
+    new DonkeyClientImpl(address.substr(0, off), boost::lexical_cast<unsigned short>(address.substr(off+1)));
 }
 
 
