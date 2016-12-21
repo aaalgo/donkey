@@ -131,7 +131,7 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
 bool run_server (Config const &config, Service *svr) {
     LOG(info) << "Starting the server...";
     HttpServer http(config.get<int>("donkey.http.server.port", DEFAULT_PORT),
-                    config.get<int>("donkey.thrift.server.threads", 8));
+                    config.get<int>("donkey.http.server.threads", 8));
     DonkeyHandler mux(svr, &http);
     std::thread th([&http]() {
                 http.start();

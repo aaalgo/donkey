@@ -1,0 +1,53 @@
+.PHONY:	all clean
+
+PROTOCOL_LIBS = -ljson11
+PROTOCOL_SOURCES = donkey-http.cpp
+PROTOCOL_HEADERS =
+PROTOCOL_OBJS = $(PROTOCOL_SOURCES:.cpp=.o)
+
+COMMON_SOURCES = donkey.cpp logging.cpp index-kgraph.cpp index-lsh.cpp 
+COMMON_OBJS = $(COMMON_SOURCES:.cpp=.o)
+
+PROG_SOURCES = server.cpp client.cpp proxy.cpp stress.cpp build-info.cpp
+PROG_OBJS = $(PROG_SOURCES:.cpp=.o)
+PROGS = $(PROG_SOURCES:.cpp=)
+
+DONKEY_HEADERS = $(DONKEY_HOME)/src/*.h
+DONKEY_OBJS = $(COMMON_OBJS) $(PROG_OBJS)
+
+EXTRA_CXX_OBJS = $(EXTRA_SOURCES:.cpp=.o)
+EXTRA_C_OBJS = $(EXTRA_C_SOURCES:.c=.o)
+
+EXTRA_OBJS = $(EXTRA_CXX_OBJS) $(EXTRA_C_OBJS)
+
+HEADERS = $(DONKEY_HEADERS) $(PROTOCOL_HEADERS) $(EXTRA_HEADERS)
+
+CFLAGS += -O3 -fopenmp -g -I$(DONKEY_HOME)/src $(EXTRA_CXXFLAGS)  -I$(DONKEY_HOME)/3rd/FastEMD -I$(PWD)
+CXXFLAGS += -std=c++11 -O3 -fopenmp $(shell $(DONKEY_HOME)/src/check_boost.sh) $(CFLAGS)
+LDFLAGS += -fopenmp $(EXTRA_LDFLAGS)
+LDLIBS += -lkgraph $(PROTOCOL_LIBS) -lboost_timer -lboost_chrono -lboost_program_options -lboost_log_setup -lboost_log -lboost_thread -lboost_filesystem -lboost_system $(EXTRA_LIBS) -lpthread -lrt -ldl $(EXTRA_EXTRA_LIBS)
+
+all:	protocol.tag $(PROGS)
+
+clean:
+	rm -rf $(DONKEY_OBJS) $(PROTOCOL_OBJS) $(EXTRA_OBJS) $(PROGS) protocol.tag
+
+protocol.tag:	
+	touch $@
+
+$(PROGS): %: %.o $(COMMON_OBJS) $(EXTRA_OBJS) $(PROTOCOL_OBJS) protocol.tag
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) $< $(COMMON_OBJS) $(EXTRA_OBJS) $(PROTOCOL_OBJS) $(LDLIBS) -o $@
+
+$(PROTOCOL_OBJS): %.o: %.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $*.o
+
+$(EXTRA_CXX_OBJS):	%.o: %.cpp $(HEADERS)
+	$(CXX) $(CXXFLAGS) -c $< -o $*.o
+
+$(EXTRA_C_OBJS):	%.o: %.c $(HEADERS)
+	$(CC) $(CXXFLAGS) -c $< -o $*.o
+
+vpath %.cpp $(DONKEY_HOME)/src
+$(DONKEY_OBJS):	%.o: %.cpp $(HEADERS)
+	$(CXX) $(CXXFLAGS) -c $< -o $*.o
+
