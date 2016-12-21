@@ -1,11 +1,14 @@
 #include "donkey-signal.h"
+#include <sstream>
 #include <future>
 #include <mutex>
+#include <thread>
 #include <boost/log/utility/setup/console.hpp>
 #include <cppcodec/base64_default_rfc4648.hpp>
+#include <json11.hpp>
+#define SERVER_EXTRA_WITH_JSON 1
 #include <simple-web-server/server_extra.hpp>
 #include <simple-web-server/client_http.hpp>
-#include <json11.hpp>
 #include "donkey.h"
 
 namespace donkey {
@@ -21,28 +24,17 @@ typedef SimpleWeb::Server<SimpleWeb::HTTP> HttpServer;
 using SimpleWeb::Response;
 using SimpleWeb::Request;
 
-using namespace json11;
+using json11::Json;
+#define LOAD_PARAM(from, to, name, type, def) \
+  { to.name = def; auto it = from.object_items().find(#name); if (it != from.object_items().end()) { to.name = it->second.type(); }}
+
 
 class DonkeyHandler: public SimpleWeb::Multiplexer {
     Service *server;
     int last_start_time;
 
-    typedef (DonkeyHandler::*Method) (Json &response, Json &request);
-
-    static void handle (Method method, DonkeyHandler *o, Response &resp, Request &req) {
-        Json input;
-        Json output;
-        if (req.content.size()) {
-            string err;
-            input = Json::parse(req.content, err);
-            if (err.size()) throw runtime_error(err);
-        }
-        o->*method(output, input);
-        resp.mime = "application/javascript";
-        resp.content = output.dump();
-    }
  public:
-  DonkeyHandler (Service *s, HttpServer *http):
+  DonkeyHandler (Service *s, HttpServer *http)
       : Multiplexer(http),
       server(s) {
     // Your initialization goes here
@@ -53,95 +45,86 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
         }
         ++restart_count;
 
-        add("/ping", "POST", std::bind(&DonkeyHandler::ping, this, _1, _2));
-        add("/search", "POST", std::bind(&DonkeyHandler::search, this, _1, _2));
-        add("/insert", "POST", std::bind(&DonkeyHandler::insert, this, _1, _2));
-        add("/misc", "POST", std::bind(&DonkeyHandler::misc, this, _1, _2));
+        add_json_api("/ping", "POST", [this](Json &resp, Json &req) {
+              resp = Json::object{
+                  {"first_start_time", first_start_time},
+                  {"last_start_time", last_start_time},
+                  {"restart_count", restart_count}
+              };
+          });
+
+        add_json_api("/search", "POST", [this](Json &response, Json &request) {
+                SearchRequest req;
+                LOAD_PARAM(request, req, db, int_value, 0);
+                LOAD_PARAM(request, req, raw, bool_value, true);
+                LOAD_PARAM(request, req, url, string_value, "");
+                LOAD_PARAM(request, req, content, string_value, "");
+                LOAD_PARAM(request, req, type, string_value, "");
+                LOAD_PARAM(request, req, K, int_value, -1);
+                LOAD_PARAM(request, req, R, number_value, NAN);
+                LOAD_PARAM(request, req, hint_K, int_value, -1);
+                LOAD_PARAM(request, req, hint_R, number_value, NAN);
+                if (req.content.size()) {
+                    string hex;
+                    hex.swap(req.content);
+                    req.content = base64::decode<string>(hex);
+                }
+
+                SearchResponse resp;
+
+                server->search(req, &resp);
+                Json::array hits;
+                for (auto const &hit: resp.hits) {
+                    hits.push_back(Json::object{
+                            {"key", hit.key},
+                            {"meta", hit.meta},
+                            {"details", hit.details},
+                            {"score", hit.score}});
+                }
+                response = Json::object{
+                    {"time", resp.time},
+                    {"load_time", resp.load_time},
+                    {"filter_time", resp.filter_time},
+                    {"rank_time", resp.rank_time},
+                    {"hits", hits}};
+          });
+        add_json_api("/insert", "POST", [this](Json &response, Json &request) {
+                InsertRequest req;
+                LOAD_PARAM(request, req, db, int_value, 0);
+                LOAD_PARAM(request, req, key, string_value, "");
+                LOAD_PARAM(request, req, meta, string_value, "");
+                LOAD_PARAM(request, req, raw, bool_value, true);
+                LOAD_PARAM(request, req, url, string_value, "");
+                LOAD_PARAM(request, req, content, string_value, "");
+                LOAD_PARAM(request, req, type, string_value, "");
+                if (req.content.size()) {
+                    string hex;
+                    hex.swap(req.content);
+                    req.content = base64::decode<string>(hex);
+                }
+
+                InsertResponse resp;
+                server->insert(req, &resp);
+
+                response = Json::object{
+                    {"time", resp.time},
+                    {"load_time", resp.load_time},
+                    {"journal_time", resp.journal_time},
+                    {"index_time", resp.index_time}};
+          });
+        add_json_api("/misc", "POST", [this](Json& response, Json &request) {
+            MiscRequest req;
+            MiscResponse resp;
+            LOAD_PARAM(request, req, db, int_value, 0);
+            LOAD_PARAM(request, req, method, string_value, "");
+
+            server->misc(req, &resp);
+            response = Json::object{
+                {"code", resp.code},
+                {"text", resp.text}};
+        });
   }
 
-  void ping(Json &resp, Json &req) {
-      resp = Json::object{
-          {"first_start_time", first_start_time}
-          {"last_start_time", last_start_time},
-          {"restart_count", restart_count}
-      };
-  }
-
-#define LOAD_PARAM(from, to, name, type, def) \
-  { to.name = def; auto it = req.find(#name); if (it != req.end()) { to.name = it->second.type(); }}
-
-  void search(Json &response, Json &request) {
-        SearchRequest req;
-        LOAD_PARAM(request, req, db, int_value, 0);
-        LOAD_PARAM(request, req, raw, bool_value, true);
-        LOAD_PARAM(request, req, url, string_value, "");
-        LOAD_PARAM(request, req, content, string_value, "");
-        LOAD_PARAM(request, req, type, string_value, "");
-        LOAD_PARAM(request, req, K, int_value, -1);
-        LOAD_PARAM(request, req, R, number_value, NAN);
-        LOAD_PARAM(request, req, hint_K, int_value, -1);
-        LOAD_PARAM(request, req, hint_R, number_value, NAN);
-        if (req.content.size()) {
-            string hex;
-            hex.swap(req.content);
-            req.content = base64::decode<string>(hex);
-        }
-
-        SearchResponse resp;
-
-        server->search(req, &resp);
-        Json::array hits;
-        for (auto const &hit: resp.hits) {
-            hits.push_back(Json::object{
-                    {"key", hit.key},
-                    {"meta", hit.meta},
-                    {"details", hit.details},
-                    {"score", hit.score}});
-        }
-        response = Json::object{
-            {"time", resp.time},
-            {"load_time", resp.load_time},
-            {"filter_time", resp.filter_time},
-            {"rank_time", resp.rank_time},
-            {"hits", hits}};
-  }
-
-  void insert(Json &response, Json &request) {
-        InsertRequest req;
-        LOAD_PARAM(request, req, db, int_value, 0);
-        LOAD_PARAM(request, req, key, int_value, 0);
-        LOAD_PARAM(request, req, meta, string_value, "");
-        LOAD_PARAM(request, req, raw, bool_value, true);
-        LOAD_PARAM(request, req, url, string_value, "");
-        LOAD_PARAM(request, req, content, string_value, "");
-        LOAD_PARAM(request, req, type, string_value, "");
-        if (req.content.size()) {
-            string hex;
-            hex.swap(req.content);
-            req.content = base64::decode<string>(hex);
-        }
-
-        InsertResponse resp;
-        server->insert(req, &resp);
-
-        response = Json::object{
-            {"time", resp.time},
-            {"load_time", resp.load_time},
-            {"journal_time", resp.journal_time},
-            {"index_time", resp.index_time}};
-  }
-
-  void misc(Json& response, Json &request) {
-        MiscRequest req;
-        MiscResponse resp;
-        LOAD_PARAM(request, req, db, int_value, 0);
-        LOAD_PARAM(request, req, method, string_value, "");
-
-        server->misc(req, &resp);
-        response = Json::object{
-            {"code", resp.code},
-            {"text", resp.text}};
-  }
 };
 
 
@@ -150,7 +133,7 @@ bool run_server (Config const &config, Service *svr) {
     HttpServer http(config.get<int>("donkey.http.server.port", DEFAULT_PORT),
                     config.get<int>("donkey.thrift.server.threads", 8));
     DonkeyHandler mux(svr, &http);
-    thread th([&http]() {
+    std::thread th([&http]() {
                 http.start();
             });
     WaitSignal ws;
@@ -167,7 +150,7 @@ class DonkeyClientImpl: public Service {
         try {
             callback();
         }
-        catch (exception const &e) {
+        catch (std::exception const &e) {
             throw InternalError(e.what());
         }
         catch (...) {
@@ -179,7 +162,7 @@ class DonkeyClientImpl: public Service {
         try {
             callback();
         }
-        catch (exception const &e) {
+        catch (std::exception const &e) {
             throw InternalError(e.what());
         }
         catch (...) {
@@ -192,21 +175,23 @@ class DonkeyClientImpl: public Service {
     void invoke (string const &addr, Json const &input, Json *output) {
         auto r = client.request("POST", addr, input.dump());
         string err;
-        *output = Json::parse(r->content.string(), err);
-        if (err.size()) {
-            throw RequestError(err);
+        std::ostringstream ss;
+        ss << r->content.rdbuf();
+        string txt = ss.str();
+        if (txt.size()) {
+            *output = Json::parse(txt, err);
+            if (err.size()) {
+                throw RequestError(err);
+            }
         }
     }
 public:
     DonkeyClientImpl (Config const &config)
-        : client(config.get<string>("donkey.http.client.server", "127.0.0.1"),
-                 config.get<unsigned short>("donkey.http.client.port", DEFAULT_PORT)) {
-    {
+        : client(config.get<string>("donkey.http.client.server", "127.0.0.1:60052")) {
     }
 
-    DonkeyClientImpl (string const &addr, unsigned short port)
-        : client(addr, port) 
-    {
+    DonkeyClientImpl (string const &addr)
+        : client(addr) {
     }
 
     ~DonkeyClientImpl () {
@@ -232,12 +217,12 @@ public:
                     {"content", request.content},
                     {"type", request.type},
                     {"key", request.key},
-                    {"meta", request.meta}}
+                    {"meta", request.meta}};
             invoke("/insert", input, &output);
-            LOAD_PARAM(output, (*response), time, double_value, -1);
-            LOAD_PARAM(output, (*response), load_time, double_value, -1);
-            LOAD_PARAM(output, (*response), journal_time, double_value, -1);
-            LOAD_PARAM(output, (*response), index_time, double_value, -1);
+            LOAD_PARAM(output, (*response), time, number_value, -1);
+            LOAD_PARAM(output, (*response), load_time, number_value, -1);
+            LOAD_PARAM(output, (*response), journal_time, number_value, -1);
+            LOAD_PARAM(output, (*response), index_time, number_value, -1);
         });
     }
 
@@ -254,19 +239,16 @@ public:
                     {"K", request.K},
                     {"R", request.R},
                     {"hint_K", request.hint_K},
-                    {"hint_R", request.hint_R},
-
-                    {"key", request.key},
-                    {"meta", request.meta}}
+                    {"hint_R", request.hint_R}};
             invoke("/search", input, &output);
-            LOAD_PARAM(output, (*response), time, double_value, -1);
-            LOAD_PARAM(output, (*response), load_time, double_value, -1);
-            LOAD_PARAM(output, (*response), filter_time, double_value, -1);
-            LOAD_PARAM(output, (*response), rank_time, double_value, -1);
+            LOAD_PARAM(output, (*response), time, number_value, -1);
+            LOAD_PARAM(output, (*response), load_time, number_value, -1);
+            LOAD_PARAM(output, (*response), filter_time, number_value, -1);
+            LOAD_PARAM(output, (*response), rank_time, number_value, -1);
             response->hits.clear();
-            for (auto const &h: output["hits"].array_value()) {
+            for (auto const &h: output["hits"].array_items()) {
                 Hit hit;
-                LOAD_PARAM(h, hit, key, int_value, 0);
+                LOAD_PARAM(h, hit, key, string_value, "");
                 LOAD_PARAM(h, hit, meta, string_value, "");
                 LOAD_PARAM(h, hit, score, number_value, -1);
                 LOAD_PARAM(h, hit, details, string_value, "");
@@ -294,10 +276,7 @@ Service *make_client (Config const &config) {
 }
 
 Service *make_client (string const &address) {
-    auto off = address.find(':');
-    if (off == address.npos) return new DonkeyClientImpl(address, DEFAULT_PORT);
-    new DonkeyClientImpl(address.substr(0, off), boost::lexical_cast<unsigned short>(address.substr(off+1)));
+    return new DonkeyClientImpl(address);
 }
-
 
 }

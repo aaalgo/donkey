@@ -293,6 +293,7 @@ namespace donkey {
         ExtractorBase ();
         ExtractorBase (Config const &);
         virtual ~ExtractorBase () {}
+        virtual void extract_url (string const &url, string const &type, Object *object) const;
         virtual void extract_path (string const &path, string const &type, Object *object) const {
             string content;
             ReadFile(path, &content);

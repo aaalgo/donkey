@@ -34,6 +34,24 @@ namespace donkey {
         }
     }
 
+    static bool test_url (string const &url) {
+        if (url.compare(0, 7, "http://") == 0) return true;
+        if (url.compare(0, 8, "https://") == 0) return true;
+        if (url.compare(0, 6, "ftp://") == 0) return true;
+        return false;
+    }
+
+    int wget (string const &url, string const &path) {
+        std::ostringstream ss;
+        ss << "wget --output-document=" << path << " --tries=3 -nv --no-check-certificate";
+        ss << " --quiet --timeout=5";
+        ss << ' ' << '"' << url << '"';
+        string cmd = ss.str();
+        //LOG(INFO) << cmd;
+        return ::system(cmd.c_str());
+    }
+
+
     Index::Index (Config const &config)
         : default_K(config.get<int>("donkey.defaults.hint_K", 1)),
         default_R(config.get<float>("donkey.defaults.hint_R", donkey::default_hint_R()))
@@ -62,26 +80,20 @@ namespace donkey {
         fs::remove(path);
     }
 
-    static bool test_url (string const &url) {
-        if (url.compare(0, 7, "http://") == 0) return true;
-        if (url.compare(0, 8, "https://") == 0) return true;
-        if (url.compare(0, 6, "ftp://") == 0) return true;
-        return false;
-    }
-
-    int wget (string const &url, string const &path) {
-        std::ostringstream ss;
-        ss << "wget --output-document=" << path << " --tries=3 -nv --no-check-certificate";
-        ss << " --quiet --timeout=5";
-        ss << ' ' << '"' << url << '"';
-        string cmd = ss.str();
-        //LOG(INFO) << cmd;
-        return ::system(cmd.c_str());
+    void ExtractorBase::extract_url (string const &url, string const &type, Object *object) const {
+        namespace fs = boost::filesystem;
+        fs::path path = fs::unique_path();
+        int r = wget(url, path.native());
+        if (r != 0) {
+            throw ExternalError(url);
+        }
+        extract_path(path.native(), type, object);
+        fs::remove(path);
     }
 
     void Server::loadObject (ObjectRequest const &request, Object *object) const {
         namespace fs = boost::filesystem;
-        fs::path path;
+        //fs::path path;
         bool is_url = false;
         if (request.url.size()) {
             if (request.content.size()) {
@@ -89,14 +101,6 @@ namespace donkey {
             }
             if (test_url(request.url)) {
                 is_url = true;
-                path = fs::unique_path();
-                int r = wget(request.url, path.native());
-                if (r != 0) {
-                    throw ExternalError(request.url);
-                }
-            }
-            else {
-                path = fs::path(request.url);
             }
         }
         
@@ -104,8 +108,11 @@ namespace donkey {
             if (request.content.size()) {
                 xtor.extract(request.content, request.type, object);
             }
-            else { // url
-                xtor.extract_path(path.native(), request.type, object);
+            else if (is_url) {
+                xtor.extract_url(request.url, request.type, object);
+            }
+            else {
+                xtor.extract_path(request.url, request.type, object);
             }
         }
         else {
@@ -113,16 +120,25 @@ namespace donkey {
                 std::istringstream is(request.content);
                 object->read(is);
             }
-            else { // url
+            else {
+                fs::path path;
+                if (is_url) { // url
+                    path = fs::unique_path();
+                    int r = wget(request.url, path.native());
+                    if (r != 0) {
+                        throw ExternalError(request.url);
+                    }
+                }
+                else {
+                    path = fs::path(request.url);
+                }
                 ifstream is(path.native(), ios::binary);
                 object->read(is);
+                if (is_url) {
+                    fs::remove(path);
+                }
             }
         }
-
-        if (is_url) {
-            fs::remove(path);
-        }
-        
     }
 
     NetworkAddress::NetworkAddress (string const &server) {

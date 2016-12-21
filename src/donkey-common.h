@@ -169,8 +169,6 @@ namespace donkey {
         vector<Part> parts;
         object_data_type data;
 
-
-
         void enumerate (function<void(unsigned tag, feature_type const *)> callback) const {
             for (unsigned i = 0; i < parts.size(); ++i) {
                 callback(i, &parts[i].feature);
