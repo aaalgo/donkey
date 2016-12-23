@@ -30,12 +30,14 @@ using json11::Json;
 
 
 class DonkeyHandler: public SimpleWeb::Multiplexer {
+    Config config;
     Service *server;
     int last_start_time;
 
  public:
-  DonkeyHandler (Service *s, HttpServer *http)
-      : Multiplexer(http),
+  DonkeyHandler (Config const &conf, Service *s, HttpServer *http)
+      : config(conf),
+      Multiplexer(http),
       server(s) {
     // Your initialization goes here
         last_start_time = time(NULL);
@@ -124,7 +126,7 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
                 {"text", resp.text}};
         });
 #ifdef DONKEY_REGISTER_HTTP_HANDLERS
-        RegisterHttpHandlers(this);
+        RegisterHttpHandlers(conf, this);
 #endif
   }
 
@@ -135,7 +137,7 @@ bool run_server (Config const &config, Service *svr) {
     LOG(info) << "Starting the server...";
     HttpServer http(config.get<int>("donkey.http.server.port", DEFAULT_PORT),
                     config.get<int>("donkey.http.server.threads", 8));
-    DonkeyHandler mux(svr, &http);
+    DonkeyHandler mux(config, svr, &http);
     std::thread th([&http]() {
                 http.start();
             });
