@@ -785,6 +785,7 @@ namespace donkey {
 
     Service *make_client (Config const &);
     Service *make_client (string const &address);
+
 }
 
 #endif

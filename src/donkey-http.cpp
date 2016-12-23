@@ -24,9 +24,14 @@ typedef SimpleWeb::Server<SimpleWeb::HTTP> HttpServer;
 using SimpleWeb::Response;
 using SimpleWeb::Request;
 
+#ifdef DONKEY_REGISTER_HTTP_HANDLERS
+void RegisterHttpHandlers (Service *, SimpleWeb::Multiplexer *);
+#endif
+
 using json11::Json;
 #define LOAD_PARAM(from, to, name, type, def) \
   { to.name = def; auto it = from.object_items().find(#name); if (it != from.object_items().end()) { to.name = it->second.type(); }}
+
 
 
 class DonkeyHandler: public SimpleWeb::Multiplexer {
