@@ -182,6 +182,9 @@ namespace donkey {
         int32_t restart_count;
     };
 
+    struct ExtractRequest: public ObjectRequest {
+    };
+
     struct SearchRequest: public ObjectRequest {
         uint16_t db;
         int32_t K;
@@ -610,6 +613,11 @@ namespace donkey {
         }
     };
 
+    struct ExtractResponse {
+        double time;
+        Object object;
+    };
+
     class Service {
     public:
         virtual ~Service () = default;
@@ -617,6 +625,9 @@ namespace donkey {
         virtual void insert (InsertRequest const &request, InsertResponse *response) = 0;
         virtual void search (SearchRequest const &request, SearchResponse *response) = 0;
         virtual void misc (MiscRequest const &request, MiscResponse *response) = 0;
+        virtual void extract (ExtractRequest const &request, ExtractResponse *response) {
+            throw Error("unimplemented");
+        };
     };
 
     class Server: public Service {
@@ -683,6 +694,11 @@ namespace donkey {
             resp->last_start_time = 0;
             resp->first_start_time = 0;
             resp->restart_count = 0;
+        }
+
+        void extract (ExtractRequest const &request, ExtractResponse *response) {
+            Timer timer1(&response->time);
+            loadObject(request, &response->object);
         }
 
         void insert (InsertRequest const &request, InsertResponse *response) {
