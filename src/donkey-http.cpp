@@ -123,6 +123,9 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
                 {"code", resp.code},
                 {"text", resp.text}};
         });
+#ifdef DONKEY_REGISTER_HTTP_HANDLERS
+        RegisterHttpHandlers(this);
+#endif
   }
 
 };
