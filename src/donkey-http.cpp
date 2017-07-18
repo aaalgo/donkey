@@ -25,7 +25,7 @@ using SimpleWeb::Response;
 using SimpleWeb::Request;
 
 #ifdef DONKEY_REGISTER_HTTP_HANDLERS
-void RegisterHttpHandlers (Service *, SimpleWeb::Multiplexer *);
+void RegisterHttpHandlers (Config const &conf, Service *, SimpleWeb::Multiplexer *);
 #endif
 
 using json11::Json;
@@ -131,7 +131,7 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
                 {"text", resp.text}};
         });
 #ifdef DONKEY_REGISTER_HTTP_HANDLERS
-        RegisterHttpHandlers(server, this);
+        RegisterHttpHandlers(conf, server, this);
 #endif
   }
 

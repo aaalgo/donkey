@@ -1,5 +1,7 @@
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <sys/types.h>
+#include <unistd.h>
 #include <boost/program_options.hpp>
 #include "donkey.h"
 
@@ -8,6 +10,7 @@ using namespace donkey;
 
 int main (int argc, char *argv[]) {
     string config_path;
+    string pid_path;
     vector<string> overrides;
     bool readonly;
     int nice;
@@ -20,6 +23,7 @@ int main (int argc, char *argv[]) {
         ("override,D", po::value(&overrides), "override configuration.")
         ("readonly", "")
         ("nice", po::value(&nice)->default_value(10), "do not lower priority")
+        ("pid", po::value(&pid_path), "pid file")
         ;
 
     po::positional_options_description p;
@@ -35,6 +39,23 @@ int main (int argc, char *argv[]) {
         cout << desc;
         cout << endl;
         return 0;
+    }
+
+    if (pid_path.size()) {
+        do {
+            struct stat st;
+            if (stat(pid_path.c_str(), &st) < 0) {
+                if (errno == ENOENT) break; // pid file doesn't exist, good!
+                cerr << "Bad status " << pid_path << ": " << strerror(errno) << endl;
+            }
+            else {
+                cerr << "PID file already exists " << pid_path << endl;
+            }
+            return 1;   // exit if we are not happy with PID file status
+        } while (false);
+        pid_t pid = getpid();
+        ofstream os(pid_path.c_str());
+        os << pid;
     }
 
     readonly = vm.count("readonly") > 0;
@@ -56,6 +77,9 @@ int main (int argc, char *argv[]) {
         LOG(info) << "restarting server.";
     }
     cleanup_logging();
+    if (pid_path.size()) {
+        unlink(pid_path.c_str());
+    }
 
     return 0;
 }
