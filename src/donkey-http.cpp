@@ -140,12 +140,14 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
 
 bool run_server (Config const &config, Service *svr) {
     LOG(info) << "Starting the server...";
-    HttpServer http(config.get<int>("donkey.http.server.port", DEFAULT_PORT),
+    int port = config.get<int>("donkey.http.server.port", DEFAULT_PORT);
+    HttpServer http(port,
                     config.get<int>("donkey.http.server.threads", 8));
     DonkeyHandler mux(config, svr, &http);
     std::thread th([&http]() {
                 http.start();
             });
+    LOG(info) << "Server listening at port " << port; 
     WaitSignal ws;
     int sig = 0;
     ws.wait(&sig);
