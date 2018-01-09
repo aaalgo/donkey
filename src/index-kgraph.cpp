@@ -5,6 +5,15 @@ namespace donkey {
 
     using kgraph::KGraph;
 
+    bool operator < (Index::Match const &m1, Index::Match const &m2) {
+        if (Matcher::POLARITY > 0) {
+            return m1.distance > m2.distance;
+        }
+        else {
+            return m1.distance < m2.distance;
+        }
+    }
+
     // Index is not mutex-protected.
     class KGraphIndex: public Index {
         struct Entry {
@@ -38,14 +47,15 @@ namespace donkey {
         class SearchOracle: public kgraph::SearchOracle {
             KGraphIndex const *parent;
             Feature const &query;
+            unsigned offset, sz;
         public:
-            SearchOracle (KGraphIndex const *p, Feature const &q): parent(p), query(q) {
+            SearchOracle (KGraphIndex const *p, Feature const &q, unsigned begin, unsigned end): parent(p), query(q), offset(begin), sz(end-begin) {
             }   
             virtual unsigned size () const {
-                return parent->indexed_size;
+                return sz;
             }   
             virtual float operator () (unsigned i) const {
-                return FeatureSimilarity::apply(*parent->entries[i].feature, query);
+                return FeatureSimilarity::apply(*parent->entries[offset+i].feature, query);
             }   
         };
 
@@ -88,7 +98,6 @@ namespace donkey {
         virtual void search (Feature const &query, SearchRequest const &sp, std::vector<Match> *matches) const {
             matches->clear();
 
-            SearchOracle oracle(this, query);
             KGraph::SearchParams params(search_params);
             int K = sp.hint_K;
             float R = sp.hint_R;
@@ -97,18 +106,21 @@ namespace donkey {
             if (FeatureSimilarity::POLARITY >= 0) {
                 R *= -1;
             }
-            vector<unsigned> ids(K);
-            vector<float> dists(K);
+            vector<unsigned> ids(K*2);
+            vector<float> dists(K*2);
             unsigned L = 0;
             params.K = K;
             params.epsilon = R;
             if (kg_index) {
+                SearchOracle oracle(this, query, 0, indexed_size);
                 // update search params
-                L = kg_index->search(oracle, params, &ids[0], &dists[0], nullptr);
+                L += kg_index->search(oracle, params, &ids[L], &dists[L], nullptr);
             }
-            else {
-                L = oracle.search(params.K, params.epsilon, &ids[0], &dists[0]);
+            if (indexed_size < entries.size()) {
+                SearchOracle oracle(this, query, indexed_size, entries.size());
+                L += oracle.search(params.K, params.epsilon, &ids[L], &dists[L]);
             }
+            BOOST_VERIFY(L <= 2*K);
             matches->resize(L);
             for (unsigned i = 0; i < L; ++i) {
                 auto &m = matches->at(i);
@@ -117,7 +129,12 @@ namespace donkey {
                 m.tag = e.tag;
                 m.distance = dists[i];
             }
-            BOOST_VERIFY(indexed_size == entries.size());
+            sort(matches->begin(),
+                 matches->end());
+            if (matches->size() > K) {
+                matches->resize(K);
+            }
+            BOOST_VERIFY(indexed_size <= entries.size());
         }
 
         virtual void insert (uint32_t object, uint32_t tag, Feature const *feature) {
