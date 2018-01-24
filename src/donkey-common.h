@@ -11,10 +11,18 @@ namespace donkey {
 
     struct PositiveSimilarity {
         static constexpr int POLARITY = 1;
+        struct Params {
+            void decode (string const &) {}
+            string encode () {return "";}
+        };
     };
 
     struct NegativeSimilarity {
         static constexpr int POLARITY = -1;
+        struct Params {
+            void decode (string const &) {}
+            string encode () {return "";}
+        };
     };
 
     template <typename T, unsigned D>
@@ -41,7 +49,7 @@ namespace donkey {
     template <typename T, unsigned D>
     struct Cosine: public PositiveSimilarity {
         typedef VectorFeature<T,D> feature_type;
-        static float apply (feature_type const &v1, feature_type const &v2) {
+        static float apply (feature_type const &v1, feature_type const &v2, Params const &params) {
             float v = 0.0f;
             float m1 = 0.0f, m2 = 0.0f;
             for (unsigned i = 0; i < D; ++i) {
@@ -62,7 +70,7 @@ namespace donkey {
         template <typename T, unsigned D>
         struct L1: public Distance {
             typedef VectorFeature<T,D> feature_type;
-            static float apply (feature_type const &v1, feature_type const &v2) {
+            static float apply (feature_type const &v1, feature_type const &v2, Params const &params) {
                 double v = 0;
                 for (unsigned i = 0; i < D; ++i) {
                     double a = std::abs(v1.data[i] - v2.data[i]);
@@ -75,7 +83,7 @@ namespace donkey {
         template <typename T, unsigned D>
         struct L2: public Distance {
             typedef VectorFeature<T,D> feature_type;
-            static float apply (feature_type const &v1, feature_type const &v2) {
+            static float apply (feature_type const &v1, feature_type const &v2, Params const &params) {
                 double v = 0.0;
                 for (unsigned i = 0; i < D; ++i) {
                     double a = v1.data[i] - v2.data[i];
@@ -107,7 +115,7 @@ namespace donkey {
         template <typename T, unsigned D>
         struct Hamming: public Distance {
             typedef VectorFeature<T, D> feature_type;
-            static float apply (feature_type const &v1, feature_type const &v2) {
+            static float apply (feature_type const &v1, feature_type const &v2, Params const &params) {
                 return hamming_with_popcount<D>(&v1.data[0], &v2.data[0]);
             }
         };
@@ -115,7 +123,7 @@ namespace donkey {
         template <typename T, unsigned D>
         struct TypeHamming: public Distance {
             typedef VectorFeature<T, D> feature_type;
-            static float apply (feature_type const &v1, feature_type const &v2) {
+            static float apply (feature_type const &v1, feature_type const &v2, Params const &params) {
                 int v = 0;
                 for (unsigned i = 0; i < D; ++i) {
                     if (v1.data[i] != v2.data[i]) {

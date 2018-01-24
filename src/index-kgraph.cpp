@@ -31,6 +31,7 @@ namespace donkey {
 
         class IndexOracle: public kgraph::IndexOracle {
             KGraphIndex *parent;
+            FeatureSimilarity::Params params_l1;
         public:
             IndexOracle (KGraphIndex *p): parent(p) {
             }
@@ -40,7 +41,7 @@ namespace donkey {
             virtual float operator () (unsigned i, unsigned j) const {
                 return (-FeatureSimilarity::POLARITY) *
                        FeatureSimilarity::apply(*parent->entries[i].feature,
-                                *parent->entries[j].feature);
+                                *parent->entries[j].feature, params_l1);
             }   
         };  
 
@@ -48,14 +49,15 @@ namespace donkey {
             KGraphIndex const *parent;
             Feature const &query;
             unsigned offset, sz;
+            FeatureSimilarity::Params const &params_l1;
         public:
-            SearchOracle (KGraphIndex const *p, Feature const &q, unsigned begin, unsigned end): parent(p), query(q), offset(begin), sz(end-begin) {
+            SearchOracle (KGraphIndex const *p, Feature const &q, unsigned begin, unsigned end, FeatureSimilarity::Params const &params): parent(p), query(q), offset(begin), sz(end-begin), params_l1(params) {
             }   
             virtual unsigned size () const {
                 return sz;
             }   
             virtual float operator () (unsigned i) const {
-                return FeatureSimilarity::apply(*parent->entries[offset+i].feature, query);
+                return FeatureSimilarity::apply(*parent->entries[offset+i].feature, query, params_l1);
             }   
         };
 
@@ -112,12 +114,12 @@ namespace donkey {
             params.K = K;
             params.epsilon = R;
             if (kg_index) {
-                SearchOracle oracle(this, query, 0, indexed_size);
+                SearchOracle oracle(this, query, 0, indexed_size, sp.params_l1);
                 // update search params
                 L += kg_index->search(oracle, params, &ids[L], &dists[L], nullptr);
             }
             if (indexed_size < entries.size()) {
-                SearchOracle oracle(this, query, indexed_size, entries.size());
+                SearchOracle oracle(this, query, indexed_size, entries.size(), sp.params_l1);
                 L += oracle.search(params.K, params.epsilon, &ids[L], &dists[L]);
             }
             BOOST_VERIFY(L <= 2*K);

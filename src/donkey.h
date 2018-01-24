@@ -174,6 +174,86 @@ namespace donkey {
         string type;        // passed to feature extraction plugin for extra info
     };
 
+    static inline void ReadFile (const std::string &path, std::string *binary) {
+        // file could not be too big
+        binary->clear();
+        ifstream is(path.c_str(), std::ios::binary);
+        if (!is) return;
+        is.seekg(0, std::ios::end);
+        size_t size = size_t(is.tellg());
+        if (size > MAX_BINARY) return;
+        binary->resize(size);
+        if (size) {
+            is.seekg(0, std::ios::beg);
+            is.read((char *)&binary->at(0), size);
+        }
+        if (!is) binary->clear();
+    }
+
+    void ReadURL (const std::string &url, std::string *binary);
+
+    static inline void WriteFile (const std::string &path, std::string const &binary) {
+        // file could not be too big
+        ofstream os(path.c_str(), ios::binary);
+        os.write(&binary[0], binary.size());
+    }
+
+    struct ObjectBase {
+        string meta;
+    };
+
+    // Feature extractor interface.
+    class ExtractorBase {
+        string tmp_model;
+    protected:
+        boost::filesystem::path unique_path () const {
+            return boost::filesystem::unique_path(tmp_model);
+        }
+    public:
+        ExtractorBase ();
+        ExtractorBase (Config const &);
+        virtual ~ExtractorBase () {}
+        virtual void extract_url (string const &url, string const &type, Object *object) const;
+        virtual void extract_path (string const &path, string const &type, Object *object) const {
+            string content;
+            ReadFile(path, &content);
+            extract(content, type, object);
+        }
+        virtual void extract (string const &content, string const &type, Object *object) const; 
+    };
+
+
+}
+// data-type-specific configuration
+#include "config.h"
+
+#ifdef AAALGO_DONKEY_TEXT
+#include "donkey-inverted-index.h"
+#endif
+
+
+namespace donkey {
+
+    static inline float default_R () {
+        if (Matcher::POLARITY >= 0) {
+            return -numeric_limits<float>::max();
+        }
+        else {
+            return numeric_limits<float>::max();
+        }
+    }
+
+    static inline float default_hint_R () {
+        if (FeatureSimilarity::POLARITY > 0) {
+            return -numeric_limits<float>::max();
+        }
+        else {
+            return numeric_limits<float>::max();
+        }
+    }
+
+
+
     void log_object_request (ObjectRequest const &request, char const *type);
 
     struct PingResponse {
@@ -192,6 +272,8 @@ namespace donkey {
         int32_t hint_K;
         float hint_R;
         string expect_key;  // for benchmarking only, not included in API
+        FeatureSimilarity params_l1;  // only in HTTP for now
+        //string params_l2;  // only in HTTP for now
     };
 
     struct SearchResponse {
@@ -257,82 +339,6 @@ namespace donkey {
     Index *create_lsh_index (Config const &);
     // utility functions
     
-    static inline void ReadFile (const std::string &path, std::string *binary) {
-        // file could not be too big
-        binary->clear();
-        ifstream is(path.c_str(), std::ios::binary);
-        if (!is) return;
-        is.seekg(0, std::ios::end);
-        size_t size = size_t(is.tellg());
-        if (size > MAX_BINARY) return;
-        binary->resize(size);
-        if (size) {
-            is.seekg(0, std::ios::beg);
-            is.read((char *)&binary->at(0), size);
-        }
-        if (!is) binary->clear();
-    }
-
-    void ReadURL (const std::string &url, std::string *binary);
-
-    static inline void WriteFile (const std::string &path, std::string const &binary) {
-        // file could not be too big
-        ofstream os(path.c_str(), ios::binary);
-        os.write(&binary[0], binary.size());
-    }
-
-    struct ObjectBase {
-        string meta;
-    };
-
-    // Feature extractor interface.
-    class ExtractorBase {
-        string tmp_model;
-    protected:
-        boost::filesystem::path unique_path () const {
-            return boost::filesystem::unique_path(tmp_model);
-        }
-    public:
-        ExtractorBase ();
-        ExtractorBase (Config const &);
-        virtual ~ExtractorBase () {}
-        virtual void extract_url (string const &url, string const &type, Object *object) const;
-        virtual void extract_path (string const &path, string const &type, Object *object) const {
-            string content;
-            ReadFile(path, &content);
-            extract(content, type, object);
-        }
-        virtual void extract (string const &content, string const &type, Object *object) const; 
-    };
-}
-
-// data-type-specific configuration
-#include "config.h"
-
-#ifdef AAALGO_DONKEY_TEXT
-#include "donkey-inverted-index.h"
-#endif
-
-namespace donkey {
-
-    static inline float default_R () {
-        if (Matcher::POLARITY >= 0) {
-            return -numeric_limits<float>::max();
-        }
-        else {
-            return numeric_limits<float>::max();
-        }
-    }
-
-    static inline float default_hint_R () {
-        if (FeatureSimilarity::POLARITY > 0) {
-            return -numeric_limits<float>::max();
-        }
-        else {
-            return numeric_limits<float>::max();
-        }
-    }
-
     // append & sync are protected.
     class Journal {
         static uint32_t const MAGIC = 0xdeadface;

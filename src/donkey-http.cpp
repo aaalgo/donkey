@@ -7,8 +7,8 @@
 #include <cppcodec/base64_default_rfc4648.hpp>
 #include <json11.hpp>
 #define SERVER_EXTRA_WITH_JSON 1
-#include <simple-web-server/server_extra.hpp>
-#include <simple-web-server/client_http.hpp>
+#include <server_extra.hpp>
+#include <client_http.hpp>
 #include "donkey.h"
 
 namespace donkey {
@@ -32,6 +32,8 @@ using json11::Json;
 #define LOAD_PARAM(from, to, name, type, def) \
   { to.name = def; auto it = from.object_items().find(#name); if (it != from.object_items().end()) { to.name = it->second.type(); }}
 
+#define LOAD_PARAM1(from, to, name, type, def) \
+  { to = def; auto it = from.object_items().find(#name); if (it != from.object_items().end()) { name = it->second.type(); }}
 
 
 class DonkeyHandler: public SimpleWeb::Multiplexer {
@@ -71,6 +73,10 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
                 LOAD_PARAM(request, req, R, number_value, NAN);
                 LOAD_PARAM(request, req, hint_K, int_value, -1);
                 LOAD_PARAM(request, req, hint_R, number_value, NAN);
+                string params_l1;
+                LOAD_PARAM1(request, params_l1, params_l1, string_value, "");
+                req.params_l1.parse(params_l1);
+                //LOAD_PARAM(request, req, params_l2, string_value, "");
                 if (req.content.size()) {
                     string hex;
                     hex.swap(req.content);
@@ -251,7 +257,10 @@ public:
                     {"K", request.K},
                     {"R", request.R},
                     {"hint_K", request.hint_K},
-                    {"hint_R", request.hint_R}};
+                    {"hint_R", request.hint_R},
+                    {"params_l1", request.params_l1.encode()}
+                    //{"params_l2", request.params_l2}
+                    };
             invoke("/search", input, &output);
             LOAD_PARAM(output, (*response), time, number_value, -1);
             LOAD_PARAM(output, (*response), load_time, number_value, -1);
