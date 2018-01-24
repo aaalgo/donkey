@@ -126,9 +126,16 @@ namespace donkey {
                 // update search params
                 L += kg_index->search(oracle, params, &ids[L], &dists[L], nullptr);
             }
+            else {
+                BOOST_VERIFY(indexed_size == 0);
+            }
             if (indexed_size < entries.size()) {
                 SearchOracle oracle(this, query, indexed_size, entries.size(), sp.params_l1);
-                L += oracle.search(params.K, params.epsilon, &ids[L], &dists[L]);
+                unsigned L0 = L;
+                L += oracle.search(params.K, params.epsilon, &ids[L0], &dists[L0]);
+                for (unsigned l = L0; l < L; ++l) {
+                    ids[l] += indexed_size;
+                }
             }
             BOOST_VERIFY(L <= 2*K);
             matches->resize(L);
@@ -165,7 +172,7 @@ namespace donkey {
 
         virtual void rebuild () {   // insert must not happen at this time
             if (linear) {
-                indexed_size = entries.size();
+                BOOST_VERIFY(indexed_size == 0);
                 return;
             }
             if (entries.size() == indexed_size) return;

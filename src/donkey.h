@@ -508,12 +508,16 @@ namespace donkey {
 
             // recover journal 
             journal.recover([this](uint16_t dbid, string const &key, string const &meta, Object *object){
-                try {
-                    this->insert(key, meta, object);
-                }
-                catch (...) {
-                }
-            });
+                Record *rec = new Record;
+                rec->key = key;
+                rec->meta = meta;
+                object->swap(rec->object);
+                size_t id = records.size();
+                records.push_back(rec);
+                rec->object.enumerate([this, id](unsigned tag, Feature const *ft) {
+                        index->insert(id, tag, ft);
+                    });
+                });
             __recover_index(dir + "/index");
         }
 
@@ -538,7 +542,7 @@ namespace donkey {
             size_t id = records.size();
             records.push_back(rec);
             rec->object.enumerate([this, id](unsigned tag, Feature const *ft) {
-                index->insert(id, tag, ft);
+            index->insert(id, tag, ft);
             });
         }
 
