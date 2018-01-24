@@ -33,7 +33,7 @@ namespace donkey {
             KGraphIndex *parent;
             FeatureSimilarity::Params params_l1;
         public:
-            IndexOracle (KGraphIndex *p): parent(p) {
+            IndexOracle (KGraphIndex *p, FeatureSimilarity::Params const p1): parent(p), params_l1(p1) {
             }
             virtual unsigned size () const {
                 return parent->entries.size();
@@ -49,9 +49,9 @@ namespace donkey {
             KGraphIndex const *parent;
             Feature const &query;
             unsigned offset, sz;
-            FeatureSimilarity::Params const &params_l1;
+            FeatureSimilarity::Params params_l1;
         public:
-            SearchOracle (KGraphIndex const *p, Feature const &q, unsigned begin, unsigned end, FeatureSimilarity::Params const &params): parent(p), query(q), offset(begin), sz(end-begin), params_l1(params) {
+            SearchOracle (KGraphIndex const *p, Feature const &q, unsigned begin, unsigned end, FeatureSimilarity::Params params): parent(p), query(q), offset(begin), sz(end-begin), params_l1(params) {
             }   
             virtual unsigned size () const {
                 return sz;
@@ -63,6 +63,8 @@ namespace donkey {
 
         KGraph::IndexParams index_params;
         KGraph::SearchParams search_params;
+        FeatureSimilarity::Params index_params_l1;
+        FeatureSimilarity::Params search_params_l1;
         KGraph *kg_index;
 
     public:
@@ -83,12 +85,18 @@ namespace donkey {
             index_params.recall = config.get<float>("donkey.kgraph.index.recall", index_params.recall);
             index_params.prune = config.get<unsigned>("donkey.kgraph.index.prune", index_params.prune);
 
+            string l1 = config.get<string>("donkey.kgraph.index.params_l1", "");
+            index_params_l1.decode(l1);
+
             search_params.K = config.get<unsigned>("donkey.kgraph.search.K", search_params.K);
             search_params.M = config.get<unsigned>("donkey.kgraph.search.M", search_params.M);
             search_params.P = config.get<unsigned>("donkey.kgraph.search.P", search_params.P);
             search_params.T = config.get<unsigned>("donkey.kgraph.search.T", search_params.T);
             search_params.epsilon = config.get<float>("donkey.kgraph.search.epsilon", search_params.epsilon);
             search_params.seed = config.get<unsigned>("donkey.kgraph.search.seed", search_params.seed);
+
+            l1 = config.get<string>("donkey.kgraph.search.params_l1", "");
+            search_params_l1.decode(l1);
         }
 
         ~KGraphIndex () {
@@ -165,7 +173,7 @@ namespace donkey {
             if (entries.size() >= min_index_size) {
                 kg = KGraph::create();
                 LOG(info) << "Rebuilding index for " << entries.size() << " features.";
-                IndexOracle oracle(this);
+                IndexOracle oracle(this, index_params_l1);
                 kg->build(oracle, index_params, NULL);
                 LOG(info) << "Swapping on new index...";
             }

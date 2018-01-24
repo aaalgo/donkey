@@ -272,7 +272,7 @@ namespace donkey {
         int32_t hint_K;
         float hint_R;
         string expect_key;  // for benchmarking only, not included in API
-        FeatureSimilarity params_l1;  // only in HTTP for now
+        FeatureSimilarity::Params params_l1;  // only in HTTP for now
         //string params_l2;  // only in HTTP for now
     };
 
@@ -461,16 +461,22 @@ namespace donkey {
             string meta;
             Object object;
         };
-        vector<Record *> records;
+        bool readonly;
         Index *index;
+        string dir;
+        Journal journal;
+        vector<Record *> records;
         mutable shared_mutex mutex;
         Matcher matcher;
         SearchRequest defaults;
         int default_K;
         float default_R;
     public:
-        DB (Config const &config, bool ro) 
-            : index(nullptr),
+        DB (Config const &config, string const &dir_, bool ro) 
+            : readonly(ro),
+            index(nullptr),
+            dir(dir_),
+            journal(dir + "/journal", ro),
             matcher(config),
             default_K(config.get<int>("donkey.defaults.K", 1)),
             default_R(config.get<float>("donkey.defaults.R", donkey::default_R()))
@@ -499,6 +505,16 @@ namespace donkey {
 #endif
             else throw ConfigError("unknown index algorithm");
             BOOST_VERIFY(index);
+
+            // recover journal 
+            journal.recover([this](uint16_t dbid, string const &key, string const &meta, Object *object){
+                try {
+                    this->insert(key, meta, object);
+                }
+                catch (...) {
+                }
+            });
+            __recover_index(dir + "/index");
         }
 
         ~DB () {
@@ -507,11 +523,18 @@ namespace donkey {
         }
 
         void insert (string const &key, string const &meta, Object *object) {
+            if (readonly) {
+                throw PermissionError("database is readonly");
+            }
             Record *rec = new Record;
             rec->key = key;
             rec->meta = meta;
             object->swap(rec->object);
             unique_lock<shared_mutex> lock(mutex);
+            {
+                //Timer timer2(&response->journal_time);
+                journal.append(0, key, meta, *object);
+            }
             size_t id = records.size();
             records.push_back(rec);
             rec->object.enumerate([this, id](unsigned tag, Feature const *ft) {
@@ -589,6 +612,9 @@ namespace donkey {
         }
 
         void clear () {
+            if (readonly) {
+                throw PermissionError("database is readonly");
+            }
             unique_lock<shared_mutex> lock(mutex);
             index->clear();
             for (auto record: records) {
@@ -598,20 +624,31 @@ namespace donkey {
         }
 
         void reindex () {
+            if (readonly) {
+                throw PermissionError("database is readonly");
+            }
             unique_lock<shared_mutex> lock(mutex);
             // TODO: this can be improved
             // The index building part doesn't requires read-lock only
             index->rebuild();
         }
 
-        void snapshot_index (string const &path) {
+        void sync (void) {
+            if (readonly) {
+                throw PermissionError("database is readonly");
+            }
+            journal.sync();
+            __snapshot_index(dir + "/index");
+        }
+
+        void __snapshot_index (string const &path) {
             unique_lock<shared_mutex> lock(mutex);
             if (records.size()) {
                 index->snapshot(path);
             }
         }
 
-        void recover_index (string const &path) {
+        void __recover_index (string const &path) {
             unique_lock<shared_mutex> lock(mutex);
             if (records.size()) {
                 index->recover(path);
@@ -636,7 +673,6 @@ namespace donkey {
         };
     };
 
-    class Server: public Service {
         class dir_checker {
         public:
             dir_checker (string const &dir) {
@@ -647,11 +683,12 @@ namespace donkey {
                 }
             }
         };
+
+    class Server: public Service {
         bool readonly;
         bool log_object;
         string root;
-        dir_checker __dir_checker;
-        Journal journal;
+        //Journal journal;
         vector<DB *> dbs;
         Extractor xtor;
 
@@ -666,26 +703,15 @@ namespace donkey {
             : readonly(ro),
             log_object(config.get<int>("donkey.server.log_object", 0)),
             root(config.get<string>("donkey.root")),
-            __dir_checker(root),
-            journal(root + "/journal", ro),
+            //__dir_checker(root),
             dbs(config.get<size_t>("donkey.max_dbs", DEFAULT_MAX_DBS), nullptr),
             xtor(config)
         {
             // create empty dbs
-            for (auto &db: dbs) {
-                db = new DB(config, readonly);
-            }
-            // recover journal 
-            journal.recover([this](uint16_t dbid, string const &key, string const &meta, Object *object){
-                try {
-                    dbs[dbid]->insert(key, meta, object);
-                }
-                catch (...) {
-                }
-            });
-            // reindex all dbs
             for (unsigned i = 0; i < dbs.size(); ++i) {
-                dbs[i]->recover_index(format("%s/%d.index", root, i));
+                string dir = format("%s/%d", root, i);
+                dir_checker __dir_checker(dir);
+                dbs[i] = new DB(config, dir, readonly);
             }
         }
 
@@ -708,7 +734,7 @@ namespace donkey {
         }
 
         void insert (InsertRequest const &request, InsertResponse *response) {
-            if (readonly) throw PermissionError("readonly journal");
+            if (readonly) throw PermissionError("readonly");
             Timer timer(&response->time);
             if (log_object) log_object_request(request, "INSERT");
             check_dbid(request.db);
@@ -716,10 +742,6 @@ namespace donkey {
             {
                 Timer timer1(&response->load_time);
                 loadObject(request, &object);
-            }
-            {
-                Timer timer2(&response->journal_time);
-                journal.append(request.db, request.key, request.meta, object);
             }
             {
                 Timer timer3(&response->index_time);
@@ -743,6 +765,7 @@ namespace donkey {
         void misc (MiscRequest const &request, MiscResponse *response) {
             LOG(info) << "misc operation: " << request.method;
             if (request.method == "reindex") {
+                if (readonly) throw PermissionError("readonly journal");
                 check_dbid(request.db);
                 dbs[request.db]->reindex();
             }
@@ -753,9 +776,8 @@ namespace donkey {
             }
             else if (request.method == "sync") {
                 if (readonly) throw PermissionError("readonly journal");
-                journal.sync();
                 for (unsigned i = 0; i < dbs.size(); ++i) {
-                    dbs[i]->snapshot_index(format("%s/%d.index", root, i));
+                    dbs[i]->sync();
                 }
             }
             response->code = 0;

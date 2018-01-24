@@ -22,6 +22,7 @@ namespace donkey {
             typedef Feature QUERY_TYPE;
             typedef Entry RECORD_TYPE;
             typedef Key KEY_TYPE;
+            typedef FeatureSimilarity::Params SEARCH_PARAMS_TYPE;
             static int constexpr POLARITY = FeatureSimilarity::POLARITY;
 
             // TODO, implement hash
@@ -38,8 +39,8 @@ namespace donkey {
                 return r.key;
             }
 
-            static float dist (RECORD_TYPE const &r, QUERY_TYPE const &q) {
-                return FeatureSimilarity::apply(*r.feature, q);
+            static float dist (RECORD_TYPE const &r, QUERY_TYPE const &q, SEARCH_PARAMS_TYPE const &params) {
+                return FeatureSimilarity::apply(*r.feature, q, params);
             }
         };
 
@@ -48,6 +49,7 @@ namespace donkey {
         Config config;
         size_t indexed_size;
         LSHImpl *lsh_index;
+        FeatureSimilarity::Params search_params_l1;
 
         void create_index () {
             unsigned num_tables = config.get("donkey.lsh.tables", 8);
@@ -61,6 +63,8 @@ namespace donkey {
 
     public:
         LSHIndex (Config const &config_): Index(config_), config(config_), indexed_size(0), lsh_index(nullptr) {
+            string l1 = config.get<string>("donkey.lsh.search.params_l1", "");
+            search_params_l1.decode(l1);
             create_index();
         }
 
@@ -78,7 +82,7 @@ namespace donkey {
                 float R = sp.hint_R;
                 if (!isnormal(R)) R = default_R;
                 vector<std::pair<Key, float>> m;
-                lsh_index->search(query, R, &m);
+                lsh_index->search(query, R, &m, sp.params_l1);
                 //TODO: use sp.hint_K, too
                 matches->resize(m.size());
                 for (unsigned i = 0; i < m.size(); ++i) {

@@ -13,7 +13,7 @@ namespace donkey {
         static constexpr int POLARITY = 1;
         struct Params {
             void decode (string const &) {}
-            string encode () {return "";}
+            string encode () const {return "";}
         };
     };
 
@@ -21,7 +21,7 @@ namespace donkey {
         static constexpr int POLARITY = -1;
         struct Params {
             void decode (string const &) {}
-            string encode () {return "";}
+            string encode () const {return "";}
         };
     };
 

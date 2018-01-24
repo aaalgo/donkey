@@ -75,7 +75,7 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
                 LOAD_PARAM(request, req, hint_R, number_value, NAN);
                 string params_l1;
                 LOAD_PARAM1(request, params_l1, params_l1, string_value, "");
-                req.params_l1.parse(params_l1);
+                req.params_l1.decode(params_l1);
                 //LOAD_PARAM(request, req, params_l2, string_value, "");
                 if (req.content.size()) {
                     string hex;

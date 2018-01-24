@@ -157,7 +157,7 @@ namespace lsh {
             }
         }
 
-        void search (typename Config::QUERY_TYPE const &query, float dist, std::vector<std::pair<typename Config::KEY_TYPE, float>> *keys) {
+        void search (typename Config::QUERY_TYPE const &query, float dist, std::vector<std::pair<typename Config::KEY_TYPE, float>> *keys, typename Config::SEARCH_PARAMS_TYPE const &params) {
             uint32_t hash[num_tables];
             Config::hash(query, num_tables, hash_bits, hash);
             // for each table
@@ -172,7 +172,7 @@ namespace lsh {
                     Block const &block = blocks[n];
                     for (unsigned j = 0; j < m; ++j) { // scan the block
                         unsigned r = block.data[j];
-                        float d = Config::dist(records[r], query);
+                        float d = Config::dist(records[r], query, params);
                         bool good = false;
                         if (Config::POLARITY > 0) {
                             good = d >= dist;
