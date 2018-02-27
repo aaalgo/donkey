@@ -33,7 +33,7 @@ using json11::Json;
   { to.name = def; auto it = from.object_items().find(#name); if (it != from.object_items().end()) { to.name = it->second.type(); }}
 
 #define LOAD_PARAM1(from, to, name, type, def) \
-  { to = def; auto it = from.object_items().find(#name); if (it != from.object_items().end()) { name = it->second.type(); }}
+  { to = def; auto it = from.object_items().find(#name); if (it != from.object_items().end()) { to = it->second.type(); }}
 
 
 class DonkeyHandler: public SimpleWeb::Multiplexer {
@@ -76,6 +76,10 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
                 string params_l1;
                 LOAD_PARAM1(request, params_l1, params_l1, string_value, "");
                 req.params_l1.decode(params_l1);
+                /*
+                std::cerr << "XXX:" << params_l1 << '/' << req.params_l1.encode() << std::endl;
+                std::cerr << request.dump() << std::endl;
+                */
                 //LOAD_PARAM(request, req, params_l2, string_value, "");
                 if (req.content.size()) {
                     string hex;
