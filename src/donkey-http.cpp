@@ -105,6 +105,46 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
                     {"rank_time", resp.rank_time},
                     {"hits", hits}};
           });
+        add_json_api("/search_batch", "POST", [this](Json &response, Json &request) {
+                SearchRequest req;
+                LOAD_PARAM(request, req, db, int_value, 0);
+                LOAD_PARAM(request, req, raw, bool_value, true);
+                /*
+                LOAD_PARAM(request, req, url, string_value, "");
+                LOAD_PARAM(request, req, content, string_value, "");
+                */
+                LOAD_PARAM(request, req, type, string_value, "");
+                LOAD_PARAM(request, req, K, int_value, -1);
+                LOAD_PARAM(request, req, R, number_value, NAN);
+                LOAD_PARAM(request, req, hint_K, int_value, -1);
+                LOAD_PARAM(request, req, hint_R, number_value, NAN);
+                string params_l1;
+                LOAD_PARAM1(request, params_l1, params_l1, string_value, "");
+                req.params_l1.decode(params_l1);
+
+                Json::array results;
+                auto it = request.object_items().find("urls");
+                for (auto const &v: it->second.array_items()) {
+                    req.url = v.string_value();
+                    SearchResponse resp;
+                    server->search(req, &resp);
+                    Json::array hits;
+                    for (auto const &hit: resp.hits) {
+                        hits.push_back(Json::object{
+                                {"key", hit.key},
+                                {"meta", hit.meta},
+                                {"details", hit.details},
+                                {"score", hit.score}});
+                    }
+                    results.push_back(Json::object{
+                    {"time", resp.time},
+                    {"load_time", resp.load_time},
+                    {"filter_time", resp.filter_time},
+                    {"rank_time", resp.rank_time},
+                    {"hits", hits}});
+                }
+                response = Json::object{{"results", results}};
+          });
         add_json_api("/insert", "POST", [this](Json &response, Json &request) {
                 InsertRequest req;
                 LOAD_PARAM(request, req, db, int_value, 0);
