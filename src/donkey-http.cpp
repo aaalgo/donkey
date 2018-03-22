@@ -105,6 +105,32 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
                     {"rank_time", resp.rank_time},
                     {"hits", hits}};
           });
+        add_json_api("/fetch", "POST", [this](Json &response, Json &request) {
+                FetchRequest req;
+                LOAD_PARAM(request, req, db, int_value, 0);
+                auto it = request.object_items().find("keys");
+                if (it != request.object_items().end()) {
+                    for (auto const &v: it->second.array_items()) {
+                        req.keys.push_back(v.string_value());
+                    }
+                }
+                SearchResponse resp;
+                server->fetch(req, &resp);
+                Json::array hits;
+                for (auto const &hit: resp.hits) {
+                    hits.push_back(Json::object{
+                            {"key", hit.key},
+                            {"meta", hit.meta},
+                            {"details", hit.details},
+                            {"score", hit.score}});
+                }
+                response = Json::object{
+                    {"time", resp.time},
+                    {"load_time", resp.load_time},
+                    {"filter_time", resp.filter_time},
+                    {"rank_time", resp.rank_time},
+                    {"hits", hits}};
+          });
         add_json_api("/search_batch", "POST", [this](Json &response, Json &request) {
                 SearchRequest req;
                 LOAD_PARAM(request, req, db, int_value, 0);
@@ -285,6 +311,31 @@ public:
             LOAD_PARAM(output, (*response), load_time, number_value, -1);
             LOAD_PARAM(output, (*response), journal_time, number_value, -1);
             LOAD_PARAM(output, (*response), index_time, number_value, -1);
+        });
+    }
+
+    void fetch (FetchRequest const &request, SearchResponse *response) {
+        protect([this, &response, request](){
+            Json input;
+            Json output;
+            input = Json::object{
+                    {"db", request.db},
+                    {"keys", request.keys}
+                    };
+            invoke("/fetch", input, &output);
+            LOAD_PARAM(output, (*response), time, number_value, -1);
+            LOAD_PARAM(output, (*response), load_time, number_value, -1);
+            LOAD_PARAM(output, (*response), filter_time, number_value, -1);
+            LOAD_PARAM(output, (*response), rank_time, number_value, -1);
+            response->hits.clear();
+            for (auto const &h: output["hits"].array_items()) {
+                Hit hit;
+                LOAD_PARAM(h, hit, key, string_value, "");
+                LOAD_PARAM(h, hit, meta, string_value, "");
+                LOAD_PARAM(h, hit, score, number_value, -1);
+                LOAD_PARAM(h, hit, details, string_value, "");
+                response->hits.push_back(hit);
+            }
         });
     }
 

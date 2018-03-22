@@ -215,7 +215,7 @@ namespace donkey {
             }
             else {
                 // fail to load, rebuild
-                rebuild();
+                indexed_size = 0;
             }
         }
 

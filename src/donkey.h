@@ -138,6 +138,7 @@ namespace donkey {
     DEFINE_ERROR(PermissionError, 0x0080);
     DEFINE_ERROR(NotImplementedError, 0x0100);
     DEFINE_ERROR(ProxyBackendError, 0x0200);
+    DEFINE_ERROR(KeyExistsError, 0x0400);
 #undef DEFINE_ERROR
 
     struct Feature;
@@ -252,8 +253,6 @@ namespace donkey {
         }
     }
 
-
-
     void log_object_request (ObjectRequest const &request, char const *type);
 
     struct PingResponse {
@@ -266,7 +265,7 @@ namespace donkey {
     };
 
     struct SearchRequest: public ObjectRequest {
-        uint16_t db;
+        int32_t db;
         int32_t K;
         float R;
         int32_t hint_K;
@@ -274,6 +273,11 @@ namespace donkey {
         string expect_key;  // for benchmarking only, not included in API
         FeatureSimilarity::Params params_l1;  // only in HTTP for now
         //string params_l2;  // only in HTTP for now
+    };
+
+    struct FetchRequest {
+        int32_t db;
+        vector<string> keys;
     };
 
     struct SearchResponse {
@@ -285,7 +289,7 @@ namespace donkey {
     };
 
     struct InsertRequest: public ObjectRequest {
-        uint16_t db;
+        int32_t db;
         string key;
         string meta;
     };
@@ -299,7 +303,7 @@ namespace donkey {
 
     struct MiscRequest {
         string method;
-        int16_t db;
+        int32_t db;
     };
 
     struct MiscResponse {
@@ -349,7 +353,7 @@ namespace donkey {
 
         struct __attribute__ ((__packed__)) RecordHead {
             uint32_t magic;
-            uint16_t dbid;
+            uint16_t reserved;
             uint16_t key_size;
             uint32_t meta_size;
         };
@@ -369,7 +373,7 @@ namespace donkey {
 
         // fastforward: directly jump to the given offset
         // return maxid
-        int recover (function<void(uint16_t dbid, string const &key, string const &meta, Object *object)> callback) {
+        int recover (function<void(uint16_t, string const &key, string const &meta, Object *object)> callback) {
             size_t off = 0;
             int count = 0;
             do {
@@ -396,7 +400,7 @@ namespace donkey {
                     Object object;
                     object.read(is);
                     if (!is) break;
-                    callback(head.dbid, key, meta, &object);
+                    callback(head.reserved, key, meta, &object);
                     ++count;
                     off = is.tellg();
                 }
@@ -428,13 +432,14 @@ namespace donkey {
             return count;
         }
 
-        void append (uint16_t dbid, string const &key, string const &meta, Object const &object) {
+        void append (uint16_t reserved, string const &key, string const &meta, Object const &object) {
+            if (reserved != 0) throw NotImplementedError("dbid in journal is renamed as reserved and should always be 0");
             if (readonly) throw PermissionError("readonly journal");
             BOOST_VERIFY(str.is_open());
             std::lock_guard<std::mutex> lock(mutex); 
             RecordHead head;
             head.magic = MAGIC;
-            head.dbid = dbid;
+            head.reserved = 0;
             head.key_size = key.size();
             head.meta_size = meta.size();
             str.write(reinterpret_cast<char const *>(&head), sizeof(head));
@@ -466,6 +471,7 @@ namespace donkey {
         string dir;
         Journal journal;
         vector<Record *> records;
+        unordered_map<string, uint32_t> lookup;
         mutable shared_mutex mutex;
         Matcher matcher;
         SearchRequest defaults;
@@ -507,7 +513,7 @@ namespace donkey {
             BOOST_VERIFY(index);
 
             // recover journal 
-            journal.recover([this](uint16_t dbid, string const &key, string const &meta, Object *object){
+            journal.recover([this](uint16_t, string const &key, string const &meta, Object *object){
                 Record *rec = new Record;
                 rec->key = key;
                 rec->meta = meta;
@@ -535,11 +541,17 @@ namespace donkey {
             rec->meta = meta;
             object->swap(rec->object);
             unique_lock<shared_mutex> lock(mutex);
+            // check existance
+            size_t id = records.size();
+            auto r = lookup.insert(make_pair(key, id));
+            if (!r.second) {
+                delete rec;
+                throw KeyExistsError("key already exists");
+            }
             {
                 //Timer timer2(&response->journal_time);
                 journal.append(0, key, meta, *object);
             }
-            size_t id = records.size();
             records.push_back(rec);
             rec->object.enumerate([this, id](unsigned tag, Feature const *ft) {
             index->insert(id, tag, ft);
@@ -615,6 +627,22 @@ namespace donkey {
             }
         }
 
+        void fetch (FetchRequest const &params, SearchResponse *response) const {
+            Timer timer(&response->load_time);
+            response->filter_time = response->rank_time = 0;
+            shared_lock<shared_mutex> lock(mutex);
+            for (auto const &key: params.keys) {
+                auto it = lookup.find(key);
+                if (it != lookup.end()) {
+                    Record *rec = records[it->second];
+                    Hit h;
+                    h.key = key;
+                    h.meta = rec->meta;
+                    response->hits.push_back(h);
+                }
+            }
+        }
+
         void clear () {
             if (readonly) {
                 throw PermissionError("database is readonly");
@@ -671,6 +699,7 @@ namespace donkey {
         virtual void ping (PingResponse *response) = 0;
         virtual void insert (InsertRequest const &request, InsertResponse *response) = 0;
         virtual void search (SearchRequest const &request, SearchResponse *response) = 0;
+        virtual void fetch (FetchRequest const &request, SearchResponse *response) = 0;
         virtual void misc (MiscRequest const &request, MiscResponse *response) = 0;
         virtual void extract (ExtractRequest const &request, ExtractResponse *response) {
             throw Error("unimplemented");
@@ -688,6 +717,70 @@ namespace donkey {
             }
         };
 
+    class NameTranslator {
+        boost::shared_mutex mutex;
+        uint16_t next_id;
+        uint16_t max_ids;   // sizeof(lookup) == next_id <= max_ids
+        unordered_map<int32_t, uint16_t> mapping;
+        string const path;
+
+        void load_thread_unsafe () {
+            ifstream is(path.c_str());
+            int outerid;
+            uint16_t dbid;
+            next_id = 0;
+            mapping.clear();
+            while (is >> dbid >> outerid) {
+                mapping[outerid] = dbid;
+                if (dbid != next_id) throw InternalError("bad idmapper config");
+                ++next_id;
+            }
+            if (next_id > max_ids) throw InternalError("too many database ids");
+        }
+
+        void save_thread_unsafe () {
+            vector<std::pair<uint16_t, int32_t>> ids;    // inter -> outer
+            for (auto const &p: mapping) {           // outer -> inter
+                ids.emplace_back(p.second, p.first);
+            }
+            sort(ids.begin(), ids.end());
+            ofstream os(path.c_str());
+            for (auto const &p: ids) {
+                os << p.first << '\t' << p.second << std::endl;
+            }
+        }
+    public:
+        NameTranslator (string const &path_, uint16_t max): next_id(0), path(path_), max_ids(max) {
+            load_thread_unsafe();
+        }
+
+        uint16_t lookup (int32_t id) {
+            shared_lock<shared_mutex> lock(mutex);
+            auto it = mapping.find(id);
+            if (it == mapping.end()) {
+                throw RequestError("database id not found");
+                return 0;
+            }
+            return it->second;
+        }
+
+        uint16_t lookup_with_insert (int32_t id) {
+            shared_lock<shared_mutex> lock(mutex);
+            auto it = mapping.find(id);
+            if (it == mapping.end()) {
+                unique_lock<shared_mutex> lock2(mutex);
+                if (next_id >= max_ids) throw RequestError("too many databases.");
+
+                uint16_t r = next_id++;
+                mapping[id] = r;
+                // write to file
+                save_thread_unsafe();
+                return r;
+            }
+            return it->second;
+        }
+    };
+
     class Server: public Service {
         bool readonly;
         bool log_object;
@@ -696,12 +789,9 @@ namespace donkey {
         vector<DB *> dbs;
         Extractor xtor;
 
-        void check_dbid (uint16_t dbid) const {
-            BOOST_VERIFY(dbid < dbs.size());
-        }
-
         void loadObject (ObjectRequest const &request, Object *object) const; 
 
+        NameTranslator idmap;
     public:
         Server (Config const &config, bool ro = false)
             : readonly(ro),
@@ -709,6 +799,7 @@ namespace donkey {
             root(config.get<string>("donkey.root")),
             //__dir_checker(root),
             dbs(config.get<size_t>("donkey.max_dbs", DEFAULT_MAX_DBS), nullptr),
+            idmap(root + "/idmap", dbs.size()),
             xtor(config)
         {
             // create empty dbs
@@ -741,7 +832,7 @@ namespace donkey {
             if (readonly) throw PermissionError("readonly");
             Timer timer(&response->time);
             if (log_object) log_object_request(request, "INSERT");
-            check_dbid(request.db);
+            uint16_t db = idmap.lookup_with_insert(request.db);
             Object object;
             {
                 Timer timer1(&response->load_time);
@@ -750,33 +841,39 @@ namespace donkey {
             {
                 Timer timer3(&response->index_time);
                 // must come after journal, as db insert could change object content
-                dbs[request.db]->insert(request.key, request.meta, &object);
+                dbs[db]->insert(request.key, request.meta, &object);
             }
         }
 
         void search (SearchRequest const &request, SearchResponse *response) {
             Timer timer(&response->time);
             if (log_object) log_object_request(request, "SEARCH");
-            check_dbid(request.db);
+            uint16_t db = idmap.lookup(request.db);
             Object object;
             {
                 Timer timer1(&response->load_time);
                 loadObject(request, &object);
             }
-            dbs[request.db]->search(object, request, response);
+            dbs[db]->search(object, request, response);
+        }
+
+        void fetch (FetchRequest const &request, SearchResponse *response) {
+            Timer timer(&response->time);
+            uint16_t db = idmap.lookup(request.db);
+            dbs[db]->fetch(request, response);
         }
 
         void misc (MiscRequest const &request, MiscResponse *response) {
             LOG(info) << "misc operation: " << request.method;
             if (request.method == "reindex") {
                 if (readonly) throw PermissionError("readonly journal");
-                check_dbid(request.db);
-                dbs[request.db]->reindex();
+                uint16_t db = idmap.lookup(request.db);
+                dbs[db]->reindex();
             }
             else if (request.method == "clear") {
                 if (readonly) throw PermissionError("readonly journal");
-                check_dbid(request.db);
-                dbs[request.db]->clear();
+                uint16_t db = idmap.lookup_with_insert(request.db);
+                dbs[db]->clear();
             }
             else if (request.method == "sync") {
                 if (readonly) throw PermissionError("readonly journal");

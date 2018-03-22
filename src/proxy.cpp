@@ -107,6 +107,10 @@ namespace donkey {
             // query all backends in parallel
         }
 
+        void fetch (FetchRequest const &request, SearchResponse *response) {
+            throw NotImplementedError("");
+        }
+
         void misc (MiscRequest const &request, MiscResponse *response) {
             throw NotImplementedError("insert");
         }
