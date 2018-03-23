@@ -143,6 +143,7 @@ using json11::Json;
                 resp.status = 404;
                 resp.content = "{}";
                 resp.header.insert(std::make_pair("Error", e.what()));
+                std::cerr << e.what() << std::endl;
             }
             catch (...) {
                 resp.status = 404;

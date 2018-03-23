@@ -519,6 +519,7 @@ namespace donkey {
                 rec->meta = meta;
                 object->swap(rec->object);
                 size_t id = records.size();
+                lookup[ke] = id;
                 records.push_back(rec);
                 rec->object.enumerate([this, id](unsigned tag, Feature const *ft) {
                         index->insert(id, tag, ft);
