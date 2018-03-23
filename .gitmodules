@@ -1,6 +1,3 @@
 [submodule "3rd/Simple-Web-Server"]
 	path = 3rd/Simple-Web-Server
 	url = https://github.com/aaalgo/Simple-Web-Server
-[submodule "3rd/Simple-Web-Extra"]
-	path = 3rd/Simple-Web-Extra
-	url = https://github.com/aaalgo/Simple-Web-Extra

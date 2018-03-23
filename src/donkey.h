@@ -546,8 +546,10 @@ namespace donkey {
             auto r = lookup.insert(make_pair(key, id));
             if (!r.second) {
                 delete rec;
+                std::cerr << "key already exists" << std::endl;
                 throw KeyExistsError("key already exists");
             }
+            std::cerr << "key inserted: " << key << std::endl;
             {
                 //Timer timer2(&response->journal_time);
                 journal.append(0, key, meta, *object);
@@ -765,10 +767,10 @@ namespace donkey {
         }
 
         uint16_t lookup_with_insert (int32_t id) {
-            shared_lock<shared_mutex> lock(mutex);
+            upgrade_lock<shared_mutex> lock(mutex);
             auto it = mapping.find(id);
             if (it == mapping.end()) {
-                unique_lock<shared_mutex> lock2(mutex);
+                upgrade_to_unique_lock<shared_mutex> lock2(lock);
                 if (next_id >= max_ids) throw RequestError("too many databases.");
 
                 uint16_t r = next_id++;
