@@ -2,6 +2,7 @@
 #define SERVER_EXTRA_HPP
 
 #include <vector>
+#include <boost/lexical_cast.hpp>
 #ifdef SERVER_EXTRA_WITH_JSON
 #include <json11.hpp>
 #endif
@@ -12,6 +13,7 @@
 #include "server_extra_rfc.hpp"
 
 namespace SimpleWeb {
+using boost::lexical_cast;
 #ifdef SERVER_EXTRA_WITH_JSON
 using json11::Json;
 #endif
@@ -58,6 +60,7 @@ using json11::Json;
                 *resp << "Content-Type: " << mime << "\r\n";
             }
             *resp << "Content-Length: " << content.size() << "\r\n";
+            std::cerr << header.size() << std::endl;
             for (auto const &p: header) {
                 *resp << p.first << ": " << p.second << "\r\n";
             }
@@ -139,11 +142,17 @@ using json11::Json;
                     p(resp, req);
                 }
             }
+            catch (donkey::Error const &e) {
+                resp.status = 404;
+                resp.content = "{}";
+                resp.header.insert(std::make_pair("Error", e.what()));
+                resp.header.insert(std::make_pair("ErrorCode", lexical_cast<string>(e.code())));
+            }
             catch (std::exception const &e) {
                 resp.status = 404;
                 resp.content = "{}";
                 resp.header.insert(std::make_pair("Error", e.what()));
-                std::cerr << e.what() << std::endl;
+                //std::cerr << e.what() << std::endl;
             }
             catch (...) {
                 resp.status = 404;

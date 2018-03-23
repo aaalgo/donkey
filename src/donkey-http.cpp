@@ -7,9 +7,9 @@
 #include <cppcodec/base64_default_rfc4648.hpp>
 #include <json11.hpp>
 #define SERVER_EXTRA_WITH_JSON 1
+#include "donkey.h"
 #include <server_extra_x.hpp>
 #include <client_http.hpp>
-#include "donkey.h"
 
 namespace donkey {
 
