@@ -547,10 +547,8 @@ namespace donkey {
             auto r = lookup.insert(make_pair(key, id));
             if (!r.second) {
                 delete rec;
-                std::cerr << "key already exists" << std::endl;
                 throw KeyExistsError("key already exists");
             }
-            std::cerr << "key inserted: " << key << std::endl;
             {
                 //Timer timer2(&response->journal_time);
                 journal.append(0, key, meta, *object);

@@ -1,5 +1,5 @@
-#ifndef SERVER_EXTRA_HPP
-#define SERVER_EXTRA_HPP
+#ifndef SERVER_EXTRA_X_HPP
+#define SERVER_EXTRA_X_HPP
 
 #include <vector>
 #include <boost/lexical_cast.hpp>
@@ -60,7 +60,6 @@ using json11::Json;
                 *resp << "Content-Type: " << mime << "\r\n";
             }
             *resp << "Content-Length: " << content.size() << "\r\n";
-            std::cerr << header.size() << std::endl;
             for (auto const &p: header) {
                 *resp << p.first << ": " << p.second << "\r\n";
             }
@@ -143,7 +142,7 @@ using json11::Json;
                 resp.status = 404;
                 resp.content = "{}";
                 resp.header.insert(std::make_pair("Error", e.what()));
-                resp.header.insert(std::make_pair("ErrorCode", lexical_cast<string>(e.code())));
+                resp.header.insert(std::make_pair("ErrorCode", lexical_cast<std::string>(e.code())));
 
             }
             catch (std::exception const &e) {
@@ -158,7 +157,6 @@ using json11::Json;
                 resp.header.insert(std::make_pair("Error", "Unknown exception"));
             }
         }
-#endif
 
         template <class socket_type>
         void add_json_helper (
