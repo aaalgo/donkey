@@ -694,6 +694,11 @@ namespace donkey {
             record_memory_resource.release();
         }
 
+        void offline_rebuild_index () {
+            index->rebuild();
+            __snapshot_index(dir + "/index");
+        }
+
         void reindex () {
             if (readonly) {
                 throw PermissionError("database is readonly");
