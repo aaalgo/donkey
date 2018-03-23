@@ -1,9 +1,14 @@
 #include <kgraph.h>
 #include "donkey.h"
 
+namespace kgraph {
+    KGraph *create_kgraph_lite ();
+}
+
 namespace donkey {
 
     using kgraph::KGraph;
+
 
     bool operator < (Index::Match const &m1, Index::Match const &m2) {
         if (Matcher::POLARITY > 0) {
@@ -14,6 +19,12 @@ namespace donkey {
         }
     }
 
+    enum {
+        KGRAPH_LINEAR = 0,
+        KGRAPH_LITE = 1,
+        KGRAPH_FULL = 2
+    };
+
     // Index is not mutex-protected.
     class KGraphIndex: public Index {
         struct Entry {
@@ -21,7 +32,7 @@ namespace donkey {
             uint32_t tag;
             Feature const *feature;
         };
-        bool linear;
+        int flavor;
         size_t min_index_size;
         size_t indexed_size;
         vector<Entry> entries;
@@ -68,9 +79,9 @@ namespace donkey {
         KGraph *kg_index;
 
     public:
-        KGraphIndex (Config const &config, bool linear_ = false): 
+        KGraphIndex (Config const &config, int flavor_ = KGRAPH_FULL):
             Index(config),
-            linear(linear_),
+            flavor(flavor_),
             min_index_size(config.get<size_t>("donkey.kgraph.min", 10000)),
             indexed_size(0),
             kg_index(nullptr) {
@@ -171,12 +182,22 @@ namespace donkey {
         }
 
         virtual void rebuild () {   // insert must not happen at this time
-            if (linear) {
+            if (flavor == KGRAPH_LINEAR) {
                 BOOST_VERIFY(indexed_size == 0);
                 return;
             }
             if (entries.size() == indexed_size) return;
+
+            if (flavor == KGRAPH_LITE) {
+                indexed_size = 0;
+                delete kg_index;
+                kg_index = nullptr;
+                return;
+            }
+
             KGraph *kg = nullptr;
+
+
             if (entries.size() >= min_index_size) {
                 kg = KGraph::create();
                 LOG(info) << "Rebuilding index for " << entries.size() << " features.";
@@ -193,18 +214,25 @@ namespace donkey {
 
         virtual void recover (string const &path) {
             KGraph *kg = nullptr;
-            kg = KGraph::create();
-            size_t sz = 0;
-            try {
-                kg->load(path.c_str());
-                string meta_path = path + ".meta";
-                std::ifstream is(meta_path.c_str());
-                if (!is) throw 0;
-                is >> sz;
+            if (flavor == KGRAPH_FULL) {
+                kg = KGraph::create();
             }
-            catch (...) {
-                delete kg;
-                kg = nullptr;
+            else if (flavor == KGRAPH_LITE) {
+                kg = kgraph::create_kgraph_lite();
+            }
+            size_t sz = 0;
+            if (kg) {
+                try {
+                    kg->load(path.c_str());
+                    string meta_path = path + ".meta";
+                    std::ifstream is(meta_path.c_str());
+                    if (!is) throw 0;
+                    is >> sz;
+                }
+                catch (...) {
+                    delete kg;
+                    kg = nullptr;
+                }
             }
             if (kg) {
                 indexed_size = sz;
@@ -220,7 +248,7 @@ namespace donkey {
         }
 
         virtual void snapshot (string const &path) const {
-            if (kg_index) {
+            if (kg_index && flavor == KGRAPH_FULL) {
                 kg_index->save(path.c_str(), KGraph::FORMAT_NO_DIST);
                 string meta_path = path + ".meta";
                 std::ofstream os(meta_path.c_str());
@@ -230,10 +258,14 @@ namespace donkey {
     };
 
     Index *create_kgraph_index (Config const &config) {
-        return new KGraphIndex(config, false);
+        return new KGraphIndex(config, KGRAPH_FULL);
+    }
+
+    Index *create_kgraph_lite_index (Config const &config) {
+        return new KGraphIndex(config, KGRAPH_LITE);
     }
 
     Index *create_linear_index (Config const &config) {
-        return new KGraphIndex(config, true);
+        return new KGraphIndex(config, KGRAPH_LINEAR);
     }
 }

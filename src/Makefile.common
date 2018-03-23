@@ -25,7 +25,7 @@ HEADERS = $(DONKEY_HEADERS) $(PROTOCOL_HEADERS) $(EXTRA_HEADERS)
 CFLAGS += -O3 -fopenmp -g -I$(DONKEY_HOME)/src $(EXTRA_CXXFLAGS)  -Ithrift -I$(DONKEY_HOME)/3rd/FastEMD -I$(PWD)
 CXXFLAGS += -std=c++11 -O3 -fopenmp $(shell $(DONKEY_HOME)/src/check_boost.sh) $(CFLAGS)
 LDFLAGS += -fopenmp $(EXTRA_LDFLAGS)
-LDLIBS += -lkgraph $(PROTOCOL_LIBS) -lboost_timer -lboost_chrono -lboost_program_options -lboost_log -lboost_log_setup -lboost_thread -lboost_filesystem -lboost_system $(EXTRA_LIBS) -lpthread -lrt -ldl $(EXTRA_EXTRA_LIBS)
+LDLIBS += -lkgraph $(PROTOCOL_LIBS) -lboost_timer -lboost_chrono -lboost_program_options -lboost_log -lboost_log_setup -lboost_thread -lboost_filesystem -lboost_system -lboost_container $(EXTRA_LIBS) -lpthread -lrt -ldl $(EXTRA_EXTRA_LIBS)
 
 all:	protocol.tag $(PROGS)
 

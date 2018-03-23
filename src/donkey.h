@@ -23,6 +23,9 @@
 #include <boost/log/attributes/named_scope.hpp>
 #define BOOST_SPIRIT_THREADSAFE
 #include <boost/property_tree/ptree.hpp>
+#include <boost/container/pmr/string.hpp>
+#include <boost/container/pmr/monotonic_buffer_resource.hpp>
+#include <boost/container/pmr/polymorphic_allocator.hpp>
 #include <boost/timer/timer.hpp>
 #include <boost/assert.hpp>
 #include "fnhack.h"
@@ -340,6 +343,7 @@ namespace donkey {
 
     Index *create_linear_index (Config const &);
     Index *create_kgraph_index (Config const &);
+    Index *create_kgraph_lite_index (Config const &);
     Index *create_lsh_index (Config const &);
     // utility functions
     
@@ -462,13 +466,25 @@ namespace donkey {
 
     class DB {
         struct Record {
-            string key;
-            string meta;
+            boost::container::pmr::string key;
+            boost::container::pmr::string meta;
             Object object;
+            Record (string const &k, string const &m, Object *o, boost::container::pmr::monotonic_buffer_resource *mr)
+                : key(k.begin(), k.end(), mr), meta(m.begin(), m.end(), mr), object(*o) {
+
+            }
+
+            string copy_key () {
+                return string(key.begin(), key.end());
+            }
+
+            string copy_meta () {
+                return string(meta.begin(), meta.end());
+            }
         };
         bool readonly;
         Index *index;
-        string dir;
+        string dir, algo;
         Journal journal;
         vector<Record *> records;
         unordered_map<string, uint32_t> lookup;
@@ -477,6 +493,17 @@ namespace donkey {
         SearchRequest defaults;
         int default_K;
         float default_R;
+        boost::container::pmr::monotonic_buffer_resource record_memory_resource;
+        boost::container::pmr::polymorphic_allocator<Record> record_allocator;
+
+        size_t allocated;
+
+        Record *create_record (string const &k, string const &m, Object *o) {
+            Record *mem = record_allocator.allocate(1);
+            if (!mem) throw OutOfMemoryError("cannot allocate record");
+            allocated += sizeof(Record) + k.size() + m.size();
+            return new(mem) Record(k, m, o, &record_memory_resource);
+        }
     public:
         DB (Config const &config, string const &dir_, bool ro) 
             : readonly(ro),
@@ -485,15 +512,18 @@ namespace donkey {
             journal(dir + "/journal", ro),
             matcher(config),
             default_K(config.get<int>("donkey.defaults.K", 1)),
-            default_R(config.get<float>("donkey.defaults.R", donkey::default_R()))
+            default_R(config.get<float>("donkey.defaults.R", donkey::default_R())),
+            record_memory_resource(config.get<float>("donkey.memory_chunk", 10*1024*1024-4096), nullptr),
+            record_allocator(&record_memory_resource),
+            allocated(0)
         {
             if (default_K <= 0) throw ConfigError("invalid defaults.K");
             if (!isnormal(default_R)) throw ConfigError("invalid defaults.R");
 
 #ifdef AAALGO_DONKEY_TEXT
-            string algo = config.get<string>("donkey.index.algorithm", "inverted");
+            algo = config.get<string>("donkey.index.algorithm", "inverted");
 #else
-            string algo = config.get<string>("donkey.index.algorithm", "kgraph");
+            algo = config.get<string>("donkey.index.algorithm", "kgraph");
 #endif
             if (algo == "linear") {
                 index = create_linear_index(config);
@@ -503,6 +533,9 @@ namespace donkey {
             }
             else if (algo == "kgraph") {
                 index = create_kgraph_index(config);
+            }
+            else if (algo == "kgraph_lite") {
+                index = create_kgraph_lite_index(config);
             }
 #ifdef AAALGO_DONKEY_TEXT
             else if (algo == "inverted") {
@@ -514,10 +547,7 @@ namespace donkey {
 
             // recover journal 
             journal.recover([this](uint16_t, string const &key, string const &meta, Object *object){
-                Record *rec = new Record;
-                rec->key = key;
-                rec->meta = meta;
-                object->swap(rec->object);
+                Record *rec = create_record(key, meta, object);
                 size_t id = records.size();
                 lookup[key] = id;
                 records.push_back(rec);
@@ -526,6 +556,7 @@ namespace donkey {
                     });
                 });
             __recover_index(dir + "/index");
+            std::cerr << "allocated: " << (1.0 * allocated / 1024/1024/1024) << std::endl;
         }
 
         ~DB () {
@@ -537,22 +568,24 @@ namespace donkey {
             if (readonly) {
                 throw PermissionError("database is readonly");
             }
+            /*
             Record *rec = new Record;
             rec->key = key;
             rec->meta = meta;
             object->swap(rec->object);
+            */
             unique_lock<shared_mutex> lock(mutex);
             // check existance
             size_t id = records.size();
             auto r = lookup.insert(make_pair(key, id));
             if (!r.second) {
-                delete rec;
                 throw KeyExistsError("key already exists");
             }
             {
                 //Timer timer2(&response->journal_time);
                 journal.append(0, key, meta, *object);
             }
+            Record *rec = create_record(key, meta, object);
             records.push_back(rec);
             rec->object.enumerate([this, id](unsigned tag, Feature const *ft) {
             index->insert(id, tag, ft);
@@ -605,8 +638,8 @@ namespace donkey {
                     }
                     if (good) {
                         Hit hit;
-                        hit.key = records[id]->key;
-                        hit.meta = records[id]->meta;
+                        hit.key = records[id]->copy_key();
+                        hit.meta = records[id]->copy_meta();
                         hit.score = score;
                         hit.details.swap(details);
                         response->hits.push_back(hit);
@@ -638,7 +671,7 @@ namespace donkey {
                     Record *rec = records[it->second];
                     Hit h;
                     h.key = key;
-                    h.meta = rec->meta;
+                    h.meta = rec->copy_meta();
                     response->hits.push_back(h);
                 }
             }
@@ -650,10 +683,13 @@ namespace donkey {
             }
             unique_lock<shared_mutex> lock(mutex);
             index->clear();
+            /*
             for (auto record: records) {
                 delete record;
             }
+            */
             records.clear();
+            record_memory_resource.release();
         }
 
         void reindex () {
@@ -664,6 +700,12 @@ namespace donkey {
             // TODO: this can be improved
             // The index building part doesn't requires read-lock only
             index->rebuild();
+            if (algo == "kgraph_lite") {
+                // this is a patch
+                // kgraph_lite relies on external index building
+                // ->rebuild actually frees the current index
+                index->recover(dir + "/index");
+            }
         }
 
         void sync (void) {

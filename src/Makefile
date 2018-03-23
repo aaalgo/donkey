@@ -11,7 +11,7 @@ include Makefile.thrift.inc
 
 CXXFLAGS += -fopenmp -std=c++11 -O3 -g $(EXTRA_CXXFLAGS) -Iplugin -Igrpc -Ithrift -I../3rd/FastEMD -I$(PWD) $(shell ./check_boost.sh) #-DBOOST_LOG_DYN_LINK
 LDFLAGS += -fopenmp $(EXTRA_LDFLAGS)
-LDLIBS += -lkgraph $(PROTOCOL_LIBS) -lboost_timer -lboost_chrono -lboost_program_options -lboost_log -lboost_log_setup -lboost_thread -lboost_filesystem -lboost_system $(EXTRA_LIBS) -lpthread -lrt -ldl $(EXTRA_EXTRA_LIBS)
+LDLIBS += -lkgraph $(PROTOCOL_LIBS) -lboost_timer -lboost_chrono -lboost_program_options -lboost_log -lboost_log_setup -lboost_thread -lboost_filesystem -lboost_system -lboost_container $(EXTRA_LIBS) -lpthread -lrt -ldl $(EXTRA_EXTRA_LIBS)
 
 X_HEADERS = $(patsubst %.h, plugin/%.h, $(EXTRA_HEADERS))
 X_OBJS1 = $(patsubst %.cpp, plugin/%.o, $(EXTRA_SOURCES))
