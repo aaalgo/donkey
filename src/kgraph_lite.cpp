@@ -14,7 +14,7 @@
 #undef timer
 #include <boost/dynamic_bitset.hpp>
 #include <boost/container/pmr/vector.hpp>
-#include <boost/container/pmr/monotonic_buffer_resource.hpp>
+#include "fixed_monotonic_buffer_resource.hpp"
 #include "kgraph.h"
 
 namespace kgraph {
@@ -119,7 +119,7 @@ namespace kgraph {
 
     class KGraphLite: public KGraph {
     protected:
-        boost::container::pmr::monotonic_buffer_resource memory_resource;
+        boost::container::pmr::fixed_monotonic_buffer_resource memory_resource;
         vector<unsigned> M;
         boost::container::pmr::vector_of<boost::container::pmr::vector<uint32_t>>::type graph;
         static const bool no_dist = true;   // Distance & flag information in Neighbor is not valid.

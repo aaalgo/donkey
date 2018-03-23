@@ -24,10 +24,10 @@
 #define BOOST_SPIRIT_THREADSAFE
 #include <boost/property_tree/ptree.hpp>
 #include <boost/container/pmr/string.hpp>
-#include <boost/container/pmr/monotonic_buffer_resource.hpp>
 #include <boost/container/pmr/polymorphic_allocator.hpp>
 #include <boost/timer/timer.hpp>
 #include <boost/assert.hpp>
+#include "fixed_monotonic_buffer_resource.hpp"
 #include "fnhack.h"
 
 // common stuff
@@ -469,8 +469,8 @@ namespace donkey {
             boost::container::pmr::string key;
             boost::container::pmr::string meta;
             Object object;
-            Record (string const &k, string const &m, Object *o, boost::container::pmr::monotonic_buffer_resource *mr)
-                : key(k.begin(), k.end(), mr), meta(m.begin(), m.end(), mr), object(*o) {
+            Record (string const &k, string const &m, Object *o, boost::container::pmr::fixed_monotonic_buffer_resource *mr)
+                : key(k.begin(), k.end(), mr), meta(m.begin(), m.end(), mr),  object(*o) {
 
             }
 
@@ -493,7 +493,7 @@ namespace donkey {
         SearchRequest defaults;
         int default_K;
         float default_R;
-        boost::container::pmr::monotonic_buffer_resource record_memory_resource;
+        boost::container::pmr::fixed_monotonic_buffer_resource record_memory_resource;
         boost::container::pmr::polymorphic_allocator<Record> record_allocator;
 
         size_t allocated;
@@ -560,7 +560,9 @@ namespace donkey {
         }
 
         ~DB () {
-            clear();
+            index->clear();
+            records.clear();
+            record_memory_resource.release();
             delete index;
         }
 

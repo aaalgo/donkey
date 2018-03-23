@@ -5,7 +5,7 @@ PROTOCOL_SOURCES = donkey-http.cpp
 PROTOCOL_HEADERS =
 PROTOCOL_OBJS = $(PROTOCOL_SOURCES:.cpp=.o)
 
-COMMON_SOURCES = donkey.cpp logging.cpp index-kgraph.cpp index-lsh.cpp  kgraph_lite.cpp
+COMMON_SOURCES = donkey.cpp logging.cpp index-kgraph.cpp index-lsh.cpp  kgraph_lite.cpp fixed_monotonic_buffer_resource.cpp
 COMMON_OBJS = $(COMMON_SOURCES:.cpp=.o)
 
 PROG_SOURCES = server.cpp client.cpp proxy.cpp stress.cpp build-info.cpp
