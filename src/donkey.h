@@ -377,7 +377,7 @@ namespace donkey {
 
         // fastforward: directly jump to the given offset
         // return maxid
-        int recover (function<void(uint16_t, string const &key, string const &meta, Object *object)> callback) {
+        int recover (function<void(uint16_t, string const &key, string const &meta, Object *object)> callback, size_t seek = 0, size_t *pos = nullptr) {
             size_t off = 0;
             int count = 0;
             do {
@@ -386,6 +386,9 @@ namespace donkey {
                     LOG(warning) << "Fail to open journal file.";
                     LOG(warning) << "Overwriting...";
                     break;
+                }
+                if (seek > 0) {
+                    is.seekg(seek);
                 }
                 for (;;) {
                     RecordHead head;
@@ -407,6 +410,9 @@ namespace donkey {
                     callback(head.reserved, key, meta, &object);
                     ++count;
                     off = is.tellg();
+                }
+                if (pos) {
+                    *pos = off;
                 }
                 is.close();
                 LOG(info) << "Journal recovered.";

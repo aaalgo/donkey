@@ -147,6 +147,7 @@ namespace kgraph {
             static uint32_t constexpr SIGNATURE_VERSION = 2;
             static_assert(sizeof(unsigned) == sizeof(uint32_t), "unsigned must be 32-bit");
             ifstream is(path, ios::binary);
+            if (!is) throw runtime_error("failed to open index");
             char magic[KGRAPH_MAGIC_SIZE];
             uint32_t sig_version;
             uint32_t sig_cap;
@@ -160,9 +161,11 @@ namespace kgraph {
             for (unsigned i = 0; i < KGRAPH_MAGIC_SIZE; ++i) {
                 if (KGRAPH_MAGIC[i] != magic[i]) runtime_error("index corrupted.");
             }
+            bool load_no_dist = sig_cap & FORMAT_NO_DIST;
             graph.resize(N);
             M.resize(N);
             vector<uint32_t> nids;
+            vector<Neighbor> nns;
             for (unsigned i = 0; i < graph.size(); ++i) {
                 auto &knn = graph[i];
                 unsigned K;
@@ -170,11 +173,18 @@ namespace kgraph {
                 is.read(reinterpret_cast<char *>(&K), sizeof(K));
                 if (!is) runtime_error("error reading index file.");
                 knn.resize(K);
-                if (no_dist) {
+                if (load_no_dist) {
                     nids.resize(K);
                     is.read(reinterpret_cast<char *>(&nids[0]), K * sizeof(nids[0]));
                     for (unsigned k = 0; k < K; ++k) {
                         knn[k] = nids[k];
+                    }
+                }
+                else {
+                    nns.resize(K);
+                    is.read(reinterpret_cast<char *>(&nns[0]), K * sizeof(nns[0]));
+                    for (unsigned k = 0; k < K; ++k) {
+                        knn[k] = nns[k].id;
                     }
                 }
             }
