@@ -317,6 +317,17 @@ int main (int argc, char *argv[]) {
             }
         }
     }
+    else if (method == "stat") {
+        StatRequest req;
+        StatResponse resp;
+        req.db = db;
+        client->stat(req, &resp);
+        cout << "size: " << resp.size << endl;
+        cout << "last: " << endl;
+        for (auto const &s: resp.last) {
+            cout << '\t' << s << endl;
+        }
+    }
     else {
         MiscRequest req;
         MiscResponse resp;

@@ -304,6 +304,15 @@ namespace donkey {
         double index_time;
     };
 
+    struct StatRequest {
+        int32_t db;
+    };
+
+    struct StatResponse {
+        int32_t size;
+        vector<string> last;
+    };
+
     struct MiscRequest {
         string method;
         int32_t db;
@@ -502,6 +511,9 @@ namespace donkey {
         boost::container::pmr::fixed_monotonic_buffer_resource record_memory_resource;
         boost::container::pmr::polymorphic_allocator<Record> record_allocator;
 
+        vector<string> last;
+        unsigned last_index;
+
         size_t allocated;
 
         Record *create_record (string const &k, string const &m, Object *o) {
@@ -521,8 +533,12 @@ namespace donkey {
             default_R(config.get<float>("donkey.defaults.R", donkey::default_R())),
             record_memory_resource(config.get<float>("donkey.memory_chunk", 10*1024*1024-4096), nullptr),
             record_allocator(&record_memory_resource),
+            last(config.get<int>("donkey.last_size", 500)),
+            last_index(0),
             allocated(0)
+
         {
+            if (!last.size()>0) throw ConfigError("invalid last size");
             if (default_K <= 0) throw ConfigError("invalid defaults.K");
             if (!isnormal(default_R)) throw ConfigError("invalid defaults.R");
 
@@ -598,6 +614,8 @@ namespace donkey {
             rec->object.enumerate([this, id](unsigned tag, Feature const *ft) {
             index->insert(id, tag, ft);
             });
+            last[last_index] = key;
+            last_index = (last_index + 1) % last.size();
         }
 
         void search (Object const &object, SearchRequest const &params, SearchResponse *response) const {
@@ -685,6 +703,18 @@ namespace donkey {
             }
         }
 
+        void stat (StatRequest const &params, StatResponse *response) {
+            shared_lock<shared_mutex> lock(mutex);
+            response->size = records.size();
+            response->last.clear();
+            unsigned ll = last_index;
+            for (;;) {
+                if (last[ll].size()) response->last.push_back(last[ll]);
+                ll = (ll + 1) % last.size();
+                if (ll == last_index) break;
+            }
+        }
+
         void clear () {
             if (readonly) {
                 throw PermissionError("database is readonly");
@@ -756,6 +786,7 @@ namespace donkey {
         virtual void insert (InsertRequest const &request, InsertResponse *response) = 0;
         virtual void search (SearchRequest const &request, SearchResponse *response) = 0;
         virtual void fetch (FetchRequest const &request, SearchResponse *response) = 0;
+        virtual void stat (StatRequest const &request, StatResponse *response) = 0;
         virtual void misc (MiscRequest const &request, MiscResponse *response) = 0;
         virtual void extract (ExtractRequest const &request, ExtractResponse *response) {
             throw Error("unimplemented");
@@ -918,6 +949,12 @@ namespace donkey {
             uint16_t db = idmap.lookup(request.db);
             dbs[db]->fetch(request, response);
         }
+
+        void stat (StatRequest const &request, StatResponse *response) {
+            uint16_t db = idmap.lookup(request.db);
+            dbs[db]->stat(request, response);
+        }
+
 
         void misc (MiscRequest const &request, MiscResponse *response) {
             LOG(info) << "misc operation: " << request.method;

@@ -105,6 +105,15 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
                     {"rank_time", resp.rank_time},
                     {"hits", hits}};
           });
+        add_json_api("/stat", "POST", [this](Json &response, Json &request) {
+                StatRequest req;
+                LOAD_PARAM(request, req, db, int_value, 0);
+                StatResponse resp;
+                server->stat(req, &resp);
+                response = Json::object{
+                    {"size", resp.size},
+                    {"last", resp.last}};
+          });
         add_json_api("/fetch", "POST", [this](Json &response, Json &request) {
                 FetchRequest req;
                 LOAD_PARAM(request, req, db, int_value, 0);
@@ -338,6 +347,23 @@ public:
             }
         });
     }
+
+    void stat (StatRequest const &request, StatResponse *response) {
+        protect([this, &response, request](){
+            Json input;
+            Json output;
+            input = Json::object{
+                    {"db", request.db},
+                    };
+            invoke("/stat", input, &output);
+            LOAD_PARAM(output, (*response), size, int_value, 0);
+            response->last.clear();
+            for (auto const &h: output["last"].array_items()) {
+                response->last.push_back(h.string_value());
+            }
+        });
+    }
+
 
     void search (SearchRequest const &request, SearchResponse *response) {
         protect([this, &response, request](){
