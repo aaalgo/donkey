@@ -40,12 +40,29 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
     Config config;
     Service *server;
     int last_start_time;
+    string authentication_key;
+
+    void authenticate (Json const &json) {
+        if (authentication_key.empty()) return;
+        auto it = json.object_items().find("authentication");
+        if (it != json.object_items().end()) {
+            if (it->second.string_value() == authentication_key) {
+                return;
+            }
+        }
+        throw PermissionError("authentication error");
+    }
 
  public:
   DonkeyHandler (Config const &conf, Service *s, HttpServer *http)
       : config(conf),
       Multiplexer(http),
-      server(s) {
+      server(s),
+      authentication_key(conf.get<string>("donkey.http.server.key", ""))
+  {
+        if (authentication_key.size()) {
+            LOG(warning) << "HTTP server KEY " << authentication_key;
+        }
     // Your initialization goes here
         last_start_time = time(NULL);
         std::lock_guard<std::mutex> lock(global_mutex);
@@ -181,6 +198,7 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
                 response = Json::object{{"results", results}};
           });
         add_json_api("/insert", "POST", [this](Json &response, Json &request) {
+                authenticate(request);
                 InsertRequest req;
                 LOAD_PARAM(request, req, db, int_value, 0);
                 LOAD_PARAM(request, req, key, string_value, "");
@@ -205,6 +223,7 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
                     {"index_time", resp.index_time}};
           });
         add_json_api("/misc", "POST", [this](Json& response, Json &request) {
+            authenticate(request);
             MiscRequest req;
             MiscResponse resp;
             LOAD_PARAM(request, req, db, int_value, 0);
@@ -268,8 +287,9 @@ class DonkeyClientImpl: public Service {
     }
 
     HttpClient client;
+    string authentication_key;
 
-    void invoke (string const &addr, Json const &input, Json *output) {
+    void invoke (string const &addr, Json input, Json *output) {
         auto r = client.request("POST", addr, input.dump());
         string err;
         std::ostringstream ss;
@@ -284,7 +304,9 @@ class DonkeyClientImpl: public Service {
     }
 public:
     DonkeyClientImpl (Config const &config)
-        : client(config.get<string>("donkey.http.client.server", "127.0.0.1:60052")) {
+        : client(config.get<string>("donkey.http.client.server", "127.0.0.1:60052")),
+       authentication_key(config.get<string>("donkey.http.client.key", ""))
+    {
     }
 
     DonkeyClientImpl (string const &addr)
@@ -314,7 +336,8 @@ public:
                     {"content", request.content},
                     {"type", request.type},
                     {"key", request.key},
-                    {"meta", request.meta}};
+                    {"meta", request.meta},
+                    {"authentication", authentication_key}};
             invoke("/insert", input, &output);
             LOAD_PARAM(output, (*response), time, number_value, -1);
             LOAD_PARAM(output, (*response), load_time, number_value, -1);
@@ -405,7 +428,8 @@ public:
             Json output;
             input = Json::object{
                     {"db", request.db},
-                    {"method", request.method}};
+                    {"method", request.method},
+                    {"authentication", authentication_key}};
             invoke("/misc", input, &output);
             LOAD_PARAM(output, (*response), code, int_value, -1);
             LOAD_PARAM(output, (*response), text, string_value, "");
