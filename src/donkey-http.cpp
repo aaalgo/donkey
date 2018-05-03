@@ -140,15 +140,40 @@ class DonkeyHandler: public SimpleWeb::Multiplexer {
                         req.keys.push_back(v.string_value());
                     }
                 }
-                SearchResponse resp;
+                FetchResponse resp;
                 server->fetch(req, &resp);
                 Json::array hits;
-                for (auto const &hit: resp.hits) {
+                for (auto const &hit: resp.items) {
+#ifdef IDS_FAWN
+                    vector<int> color;
+                    string sem;
+                    if (hit.object) {
+                        for (uint8_t v: hit.object->feature.color.data){
+                            color.push_back(v);
+                        }
+                        for (uint64_t v: hit.object->feature.sem.data) {
+                            for (int i = 0; i < 16; ++i) {
+                                char c = v & 0xFF;
+                                v = v >> 4;
+                                if (c < 10) {
+                                    c += '0';
+                                }
+                                else {
+                                    c = (c - 10) + 'A';
+                                }
+                                sem.push_back(c);
+                            }
+                        }
+                    }
+#endif
                     hits.push_back(Json::object{
                             {"key", hit.key},
-                            {"meta", hit.meta},
-                            {"details", hit.details},
-                            {"score", hit.score}});
+                            {"meta", hit.meta}
+#ifdef IDS_FAWN
+                            ,{"color", color}
+                            ,{"sem", sem}
+#endif
+                    });
                 }
                 response = Json::object{
                     {"time", resp.time},
@@ -346,7 +371,7 @@ public:
         });
     }
 
-    void fetch (FetchRequest const &request, SearchResponse *response) {
+    void fetch (FetchRequest const &request, FetchResponse *response) {
         protect([this, &response, request](){
             Json input;
             Json output;
@@ -359,14 +384,13 @@ public:
             LOAD_PARAM(output, (*response), load_time, number_value, -1);
             LOAD_PARAM(output, (*response), filter_time, number_value, -1);
             LOAD_PARAM(output, (*response), rank_time, number_value, -1);
-            response->hits.clear();
+            response->items.clear();
             for (auto const &h: output["hits"].array_items()) {
-                Hit hit;
+                FetchResponse::Item hit;
+                hit.object = nullptr;
                 LOAD_PARAM(h, hit, key, string_value, "");
                 LOAD_PARAM(h, hit, meta, string_value, "");
-                LOAD_PARAM(h, hit, score, number_value, -1);
-                LOAD_PARAM(h, hit, details, string_value, "");
-                response->hits.push_back(hit);
+                response->items.push_back(hit);
             }
         });
     }

@@ -291,6 +291,21 @@ namespace donkey {
         double rank_time;
     };
 
+
+    struct FetchResponse {
+        struct Item {
+            string key;
+            string meta;
+            Object *object;
+        };
+
+        vector<Item> items;
+        double time;
+        double load_time;
+        double filter_time;
+        double rank_time;
+    };
+
     struct InsertRequest: public ObjectRequest {
         int32_t db;
         string key;
@@ -687,7 +702,7 @@ namespace donkey {
             }
         }
 
-        void fetch (FetchRequest const &params, SearchResponse *response) const {
+        void fetch (FetchRequest const &params, FetchResponse *response) const {
             Timer timer(&response->load_time);
             response->filter_time = response->rank_time = 0;
             shared_lock<shared_mutex> lock(mutex);
@@ -695,10 +710,11 @@ namespace donkey {
                 auto it = lookup.find(key);
                 if (it != lookup.end()) {
                     Record *rec = records[it->second];
-                    Hit h;
+                    FetchResponse::Item h;
                     h.key = key;
                     h.meta = rec->copy_meta();
-                    response->hits.push_back(h);
+                    h.object = &rec->object;
+                    response->items.push_back(h);
                 }
             }
         }
@@ -785,7 +801,7 @@ namespace donkey {
         virtual void ping (PingResponse *response) = 0;
         virtual void insert (InsertRequest const &request, InsertResponse *response) = 0;
         virtual void search (SearchRequest const &request, SearchResponse *response) = 0;
-        virtual void fetch (FetchRequest const &request, SearchResponse *response) = 0;
+        virtual void fetch (FetchRequest const &request, FetchResponse *response) = 0;
         virtual void stat (StatRequest const &request, StatResponse *response) = 0;
         virtual void misc (MiscRequest const &request, MiscResponse *response) = 0;
         virtual void extract (ExtractRequest const &request, ExtractResponse *response) {
@@ -944,7 +960,7 @@ namespace donkey {
             dbs[db]->search(object, request, response);
         }
 
-        void fetch (FetchRequest const &request, SearchResponse *response) {
+        void fetch (FetchRequest const &request, FetchResponse *response) {
             Timer timer(&response->time);
             uint16_t db = idmap.lookup(request.db);
             dbs[db]->fetch(request, response);
