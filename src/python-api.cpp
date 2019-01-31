@@ -50,8 +50,18 @@ namespace donkey {
 
             SearchResponse resp;
             Server::search(req, &resp);
-            return py::dict();
-
+            py::list hits;
+            for (auto const &hit: resp.hits) {
+                py::dict h;
+                h["key"] = hit.key;
+                h["meta"] = hit.meta;
+                h["details"] = hit.details;
+                h["score"] = hit.score;
+                hits.append(h);
+            }
+            py::dict r;
+            r["hits"] = hits;
+            return r;
         }
 
         py::dict insert (py::dict dict) {
