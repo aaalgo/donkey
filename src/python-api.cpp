@@ -42,6 +42,7 @@ namespace donkey {
 
         py::dict search (py::dict dict) {
             SearchRequest req;
+            load_object_request(dict, &req);
             req.db = py::extract<int>(dict.get("db"));
             req.K = py::extract<int>(dict.get("K", 100));
             req.R = py::extract<float>(dict.get("R", 1e38));
@@ -66,6 +67,7 @@ namespace donkey {
 
         py::dict insert (py::dict dict) {
             InsertRequest req;
+            load_object_request(dict, &req);
             req.db = py::extract<int>(dict.get("db"));
             req.key = py::extract<string>(dict.get("key"));
             req.meta = py::extract<string>(dict.get("meta"));
