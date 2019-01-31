@@ -61,8 +61,10 @@ namespace console
     }
 
     static char const *reset = CC_CONSOLE_COLOR_DEFAULT;
+    /*
     static char const *underline = CC_ATTR(4);
     static char const *bold = CC_ATTR(1);
+    */
 }
 
 namespace donkey {

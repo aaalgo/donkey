@@ -144,7 +144,6 @@ namespace donkey {
     NetworkAddress::NetworkAddress (string const &server) {
         auto off = server.find(':');
         if (off == server.npos || off + 1 >= server.size()) {
-            struct sockaddr_in sa;
             h = server;
             p = -1;
         }

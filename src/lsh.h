@@ -55,11 +55,11 @@ namespace lsh {
             uint32_t tail;          // # records in the last block
         };
         
-        Memory memory;
 
         unsigned num_tables;
         unsigned hash_bits;
         unsigned table_size;
+        Memory memory;
         std::vector<std::vector<Bucket>> tables;
 
         Block *blocks;

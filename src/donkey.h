@@ -553,7 +553,7 @@ namespace donkey {
             allocated(0)
 
         {
-            if (!last.size()>0) throw ConfigError("invalid last size");
+            if (!(last.size()>0)) throw ConfigError("invalid last size");
             if (default_K <= 0) throw ConfigError("invalid defaults.K");
             if (!isnormal(default_R)) throw ConfigError("invalid defaults.R");
 
@@ -696,7 +696,7 @@ namespace donkey {
                          response->hits.end(),
                          [](Hit const &h1, Hit const &h2) { return h1.score > h2.score;});
                 }
-                if (response->hits.size() > K) {
+                if (int(response->hits.size()) > K) {
                     response->hits.resize(K);
                 }
             }
@@ -853,7 +853,7 @@ namespace donkey {
             }
         }
     public:
-        NameTranslator (string const &path_, uint16_t max): next_id(0), path(path_), max_ids(max) {
+        NameTranslator (string const &path_, uint16_t max): next_id(0), max_ids(max), path(path_) {
             load_thread_unsafe();
         }
 
@@ -890,11 +890,11 @@ namespace donkey {
         string root;
         //Journal journal;
         vector<DB *> dbs;
+        NameTranslator idmap;
         Extractor xtor;
 
         void loadObject (ObjectRequest const &request, Object *object) const; 
 
-        NameTranslator idmap;
     public:
         Server (Config const &config, bool ro = false)
             : readonly(ro),

@@ -6,6 +6,18 @@ namespace py = boost::python;
 
 namespace donkey {
 
+    Service *make_client (Config const &config) {
+        return nullptr;
+    }
+
+    Service *make_client (string const &address) {
+        return nullptr;
+    }
+
+    bool run_server (Config const &config, Service *svr) {
+        return false;
+    }
+
     struct PythonServerBase {
     protected:
         Config config;
@@ -28,7 +40,7 @@ namespace donkey {
             Server(config, ro) {
         }
 
-        py::object search (py::dict dict) {
+        py::dict search (py::dict dict) {
             SearchRequest req;
             req.db = py::extract<int>(dict.get("db"));
             req.K = py::extract<int>(dict.get("K", 100));
@@ -38,10 +50,11 @@ namespace donkey {
 
             SearchResponse resp;
             Server::search(req, &resp);
+            return py::dict();
 
         }
 
-        py::object insert (py::dict dict) {
+        py::dict insert (py::dict dict) {
             InsertRequest req;
             req.db = py::extract<int>(dict.get("db"));
             req.key = py::extract<string>(dict.get("key"));
@@ -49,6 +62,7 @@ namespace donkey {
 
             InsertResponse resp;
             Server::insert(req, &resp);
+            return py::dict();
         }
 
         void sync (int db) {

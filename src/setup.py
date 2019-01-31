@@ -22,16 +22,16 @@ else:
         boost_python = 'boost_python%d%d' % (sys.version_info[0], sys.version_info[1])
     pass
 
-libraries.extend(['kgraph', 'boost_thread', 'boost_timer', 'boost_chrono', 'boost_log_setup', 'boost_log', 'boost_filesystem', 'boost_system', 'boost_container', boost_python, 'gomp', 'pthread', 'rt', 'dl', 'python3.5m'])
+libraries.extend(['kgraph', 'boost_timer', 'boost_chrono', 'boost_log_setup', 'boost_log', 'boost_filesystem', 'boost_system', 'boost_container', boost_python])
 
 donkey = Extension('donkey',
         language = 'c++',
-        extra_compile_args = ['-O3', '-std=c++1y', '-g'], #, '-DBOOST_ERROR_CODE_HEADER_ONLY'], 
+        extra_compile_args = ['-O3', '-std=c++1y', '-g', '-frtti', '-DBOOST_LOG_DYN_LINK=1'], #, '-DBOOST_ERROR_CODE_HEADER_ONLY'], 
 		include_dirs = ['/usr/local/include', CONFIG_DIR, '.'],
         libraries = libraries,
         library_dirs = ['/usr/local/lib'],
 
-        sources = ['python-api.cpp', 'donkey.cpp', 'logging.cpp', 'index-kgraph.cpp', 'index-lsh.cpp', 'kgraph_lite.cpp'],
+        sources = ['python-api.cpp', 'donkey.cpp', 'logging.cpp', 'index-kgraph.cpp', 'index-lsh.cpp', 'kgraph_lite.cpp', 'fixed_monotonic_buffer_resource.cpp'],
         undef_macros = [ "NDEBUG" ]
         )
 
