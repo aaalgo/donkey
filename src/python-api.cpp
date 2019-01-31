@@ -23,7 +23,7 @@ namespace donkey {
             req->type = py::extract<string>(dict.get("type"));
         }
     public:
-        PythonServer (string const &path, bool ro)
+        PythonServer (string path, bool ro)
             : PythonServerBase(path),
             Server(config, ro) {
         }
@@ -67,7 +67,7 @@ namespace donkey {
 
 BOOST_PYTHON_MODULE(donkey)
 {
-    py::class_<donkey::PythonServer, boost::noncopyable>("Server", py::init<std::string const &, bool>())
+    py::class_<donkey::PythonServer, boost::noncopyable>("Server", py::init<std::string, bool>())
         .def("search", &donkey::PythonServer::search)
         .def("insert", &donkey::PythonServer::insert)
         .def("sync", &donkey::PythonServer::sync)

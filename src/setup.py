@@ -7,8 +7,8 @@ from distutils.core import setup, Extension
 try:
     CONFIG_DIR = os.environ['CONFIG_DIR']
 except:
-    print("Export CONFIG_DIR where config.h is")
-    sys.exit(0)
+    CONFIG_DIR = '../..'
+    print("Export CONFIG_DIR where config.h is; using ../..")
 pass
 
 libraries = []
@@ -22,7 +22,7 @@ else:
         boost_python = 'boost_python%d%d' % (sys.version_info[0], sys.version_info[1])
     pass
 
-libraries.extend(['kgraph', 'boost_timer', 'boost_chrono', 'boost_log', 'boost_log_setup', 'boost_filesystem', 'boost_system', 'boost_container', boost_python, 'glog', 'pthread', 'rt', 'dl'])
+libraries.extend(['kgraph', 'boost_thread', 'boost_timer', 'boost_chrono', 'boost_log_setup', 'boost_log', 'boost_filesystem', 'boost_system', 'boost_container', boost_python, 'gomp', 'pthread', 'rt', 'dl', 'python3.5m'])
 
 donkey = Extension('donkey',
         language = 'c++',
@@ -31,7 +31,7 @@ donkey = Extension('donkey',
         libraries = libraries,
         library_dirs = ['/usr/local/lib'],
 
-        sources = ['python-api.cpp', 'server.cpp', 'donkey.cpp', 'logging.cpp', 'index-kgraph.cpp', 'index-lsh.cpp'],
+        sources = ['python-api.cpp', 'donkey.cpp', 'logging.cpp', 'index-kgraph.cpp', 'index-lsh.cpp', 'kgraph_lite.cpp'],
         undef_macros = [ "NDEBUG" ]
         )
 
